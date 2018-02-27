@@ -77,6 +77,8 @@ public class SimpleEnRoutePickupAndDeliveryWithDepotBoundedDeliveriesExample {
 
         Shipment shipment3 = Shipment.Builder.newInstance("3").addSizeDimension(0, 1).setPickupLocation(loc(Coordinate.newInstance(15, 7))).setDeliveryLocation(loc(Coordinate.newInstance(14, 9))).build();
         Shipment shipment4 = Shipment.Builder.newInstance("4").addSizeDimension(0, 1).setPickupLocation(loc(Coordinate.newInstance(15, 13))).setDeliveryLocation(loc(Coordinate.newInstance(14, 11))).build();
+
+        Shipment shipment5 = Shipment.Builder.newInstance("9").addSizeDimension(0,1).setPickupLocation(loc(Coordinate.newInstance(10,7))).setDeliveryLocation(loc(Coordinate.newInstance(8,10))).build();
 //
         /*
          * build deliveries, (implicitly picked up in the depot)
@@ -92,7 +94,7 @@ public class SimpleEnRoutePickupAndDeliveryWithDepotBoundedDeliveriesExample {
 
         VehicleRoutingProblem.Builder vrpBuilder = VehicleRoutingProblem.Builder.newInstance();
         vrpBuilder.addVehicle(vehicle);
-        vrpBuilder.addJob(shipment1).addJob(shipment2).addJob(shipment3).addJob(shipment4)
+        vrpBuilder.addJob(shipment1).addJob(shipment2).addJob(shipment3).addJob(shipment4).addJob(shipment5)
             .addJob(delivery1).addJob(delivery2).addJob(delivery3).addJob(delivery4).build();
 
         VehicleRoutingProblem problem = vrpBuilder.build();
@@ -106,6 +108,7 @@ public class SimpleEnRoutePickupAndDeliveryWithDepotBoundedDeliveriesExample {
         constraintManager.addConstraint(new ServiceDeliveriesFirstConstraint(), ConstraintManager.Priority.CRITICAL);
 
         VehicleRoutingAlgorithm algorithm = Jsprit.Builder.newInstance(problem).setStateAndConstraintManager(stateManager,constraintManager).buildAlgorithm();
+//        algorithm.setMaxIterations(10000);
 
 		/*
          * and search a solution

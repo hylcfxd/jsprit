@@ -53,7 +53,7 @@ public class VRPWithBackhaulsExample {
 		/*
          * A solomonReader reads solomon-instance files, and stores the required information in the builder.
 		 */
-        new VrpXMLReader(vrpBuilder).read("input/pickups_and_deliveries_solomon_r101.xml");
+        new VrpXMLReader(vrpBuilder).read("jsprit-examples/input/pickups_and_deliveries_solomon_r101.xml");
 
 		/*
          * Finally, the problem can be built. By default, transportCosts are crowFlyDistances (as usually used for vrp-instances).

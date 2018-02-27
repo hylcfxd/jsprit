@@ -30,6 +30,7 @@ import com.graphhopper.jsprit.core.problem.vehicle.VehicleTypeImpl;
 import com.graphhopper.jsprit.core.reporting.SolutionPrinter;
 import com.graphhopper.jsprit.core.util.ManhattanCosts;
 import com.graphhopper.jsprit.core.util.Solutions;
+import com.graphhopper.jsprit.io.problem.VrpXMLWriter;
 
 import java.util.Collection;
 
@@ -59,7 +60,7 @@ public class MultipleTimeWindowExample {
          * build services at the required locations, each with a capacity-demand of 1.
 		 */
         Service service1 = Service.Builder.newInstance("1")
-            .addTimeWindow(50,100)
+            .addTimeWindow(90,100)
             .addTimeWindow(20,35)
             .addSizeDimension(WEIGHT_INDEX, 1).setLocation(Location.newInstance(10, 0)).build();
 
@@ -112,7 +113,7 @@ public class MultipleTimeWindowExample {
 		 */
         VehicleRoutingProblemSolution bestSolution = Solutions.bestOf(solutions);
 
-//        new VrpXMLWriter(problem, solutions).write("output/problem-with-solution.xml");
+        new VrpXMLWriter(problem, solutions).write("output/problem-with-solution.xml");
 
         SolutionPrinter.print(problem, bestSolution, SolutionPrinter.Print.VERBOSE);
 
