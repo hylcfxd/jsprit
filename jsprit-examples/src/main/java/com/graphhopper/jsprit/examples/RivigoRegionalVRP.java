@@ -42,6 +42,7 @@ public class RivigoRegionalVRP {
     public static void solver() {
 
         final int dispatchTime = 9;
+        final int avgVehicleSpeedInKMPH = 50;
         final int _20_Feet_Vehicle_Transportation_Cost_Per_Km = 20;
         final int _32_Feet_Vehicle_Transportation_Cost_Per_Km = 32;
 
@@ -185,7 +186,7 @@ public class RivigoRegionalVRP {
         vrpBuilder.addAllJobs(shipments);
         vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.FINITE);
         GreatCircleCosts greatCircleCosts = new GreatCircleCosts(DistanceUnit.Kilometer);
-        greatCircleCosts.setSpeed(50);
+        greatCircleCosts.setSpeed(avgVehicleSpeedInKMPH);
         vrpBuilder.setRoutingCost(greatCircleCosts);
         VehicleRoutingProblem problem = vrpBuilder.build();
 
