@@ -45,9 +45,22 @@ public class RivigoRegionalVRP {
 
     private static void solver() {
 
+        /**
+         * Only INTEGER values allowed
+         */
         final int dispatchTime = 5; //In Hours
         final int avgVehicleSpeedInKMPH = 50;
+
+        final int _14_Feet_Vehicle_Capacity_In_KGs = 2500;
+        final int _17_Feet_Vehicle_Capacity_In_KGs = 3000;
+        final int _20_Feet_Vehicle_Capacity_In_KGs = 4000;
+        final int _22_Feet_Vehicle_Capacity_In_KGs = 5000;
+        final int _32_Feet_Vehicle_Capacity_In_KGs = 10000;
+
+        final int _14_Feet_Vehicle_Transportation_Cost_Per_Km = 15;
+        final int _17_Feet_Vehicle_Transportation_Cost_Per_Km = 17;
         final int _20_Feet_Vehicle_Transportation_Cost_Per_Km = 20;
+        final int _22_Feet_Vehicle_Transportation_Cost_Per_Km = 22;
         final int _32_Feet_Vehicle_Transportation_Cost_Per_Km = 32;
 
         /**
@@ -62,12 +75,19 @@ public class RivigoRegionalVRP {
         locations.add(createLocation(30.897212,75.8741285));
 
         int[][] demands = new int[][] {
-            {0,1,3,1,0,2},
-            {0,0,0,0,0,0},
-            {0,0,0,0,0,0},
-            {0,0,0,0,0,0},
-            {0,0,0,0,0,0},
-            {1,0,1,0,0,0}
+//            {0,1,3,1,0,2},
+//            {0,0,0,0,0,0},
+//            {0,0,0,0,0,0},
+//            {0,0,0,0,0,0},
+//            {0,0,0,0,0,0},
+//            {1,0,1,0,0,0}
+
+            {206, 60, 271, 64, 16, 216},
+            {4, 1, 5, 1, 0, 4},
+            {6, 1, 8, 2, 0, 7},
+            {27, 7, 35, 8, 2, 28},
+            {0, 0, 0, 0, 0, 0},
+            {107, 31, 141, 33, 8, 113}
         };
 
         Examples.createOutputFolder();
@@ -75,13 +95,28 @@ public class RivigoRegionalVRP {
         /**
          * Vehicle Type Builder Factory
          */
+        VehicleTypeImpl.Builder _14FeetVehicleBuilder = VehicleTypeImpl.Builder.newInstance("14_Feet_VehicleType")
+                                                        .addCapacityDimension(0, _14_Feet_Vehicle_Capacity_In_KGs)
+                                                        .setCostPerDistance(_14_Feet_Vehicle_Transportation_Cost_Per_Km);
+        VehicleType vehicleType_14Feet = _14FeetVehicleBuilder.build();
+
+        VehicleTypeImpl.Builder _17FeetVehicleBuilder = VehicleTypeImpl.Builder.newInstance("17_Feet_VehicleType")
+                                                        .addCapacityDimension(0, _17_Feet_Vehicle_Capacity_In_KGs)
+                                                        .setCostPerDistance(_17_Feet_Vehicle_Transportation_Cost_Per_Km);
+        VehicleType vehicleType_17Feet = _17FeetVehicleBuilder.build();
+
         VehicleTypeImpl.Builder _20FeetVehicleBuilder = VehicleTypeImpl.Builder.newInstance("20_Feet_VehicleType")
-                                                        .addCapacityDimension(0, 2)
+                                                        .addCapacityDimension(0, _20_Feet_Vehicle_Capacity_In_KGs)
                                                         .setCostPerDistance(_20_Feet_Vehicle_Transportation_Cost_Per_Km);
         VehicleType vehicleType_20Feet = _20FeetVehicleBuilder.build();
 
+        VehicleTypeImpl.Builder _22FeetVehicleBuilder = VehicleTypeImpl.Builder.newInstance("22_Feet_VehicleType")
+                                                        .addCapacityDimension(0, _22_Feet_Vehicle_Capacity_In_KGs)
+                                                        .setCostPerDistance(_22_Feet_Vehicle_Transportation_Cost_Per_Km);
+        VehicleType vehicleType_22Feet = _22FeetVehicleBuilder.build();
+
         VehicleTypeImpl.Builder _32FeetVehicleTypeBuilder = VehicleTypeImpl.Builder.newInstance("32_Feet_VehicleType")
-                                                            .addCapacityDimension(0, 3)
+                                                            .addCapacityDimension(0, _32_Feet_Vehicle_Capacity_In_KGs)
                                                             .setCostPerDistance(_32_Feet_Vehicle_Transportation_Cost_Per_Km);
         VehicleType vehicleType_32Feet = _32FeetVehicleTypeBuilder.build();
 
@@ -89,24 +124,34 @@ public class RivigoRegionalVRP {
         /**
          * Vehicle Builder Factory
          */
+        VehicleImpl _14FeetVehicle_1 = VehicleImpl.Builder.newInstance("14FeetVehicle_Id:1")
+                                        .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
+                                        .setType(vehicleType_14Feet)
+//                                        .setLatestArrival(24)
+                                        .build();
+
+        VehicleImpl _17FeetVehicle_1 = VehicleImpl.Builder.newInstance("17FeetVehicle_Id:1")
+                                        .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
+                                        .setType(vehicleType_17Feet)
+//                                        .setLatestArrival(24)
+                                        .build();
+
         VehicleImpl _20FeetVehicle_1 = VehicleImpl.Builder.newInstance("20FeetVehicle_Id:1")
                                         .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
                                         .setType(vehicleType_20Feet)
+//                                        .setLatestArrival(24)
                                         .build();
 
-        VehicleImpl _20FeetVehicle_2 = VehicleImpl.Builder.newInstance("20FeetVehicle_Id:2")
+        VehicleImpl _22FeetVehicle_1 = VehicleImpl.Builder.newInstance("22FeetVehicle_Id:1")
                                         .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
-                                        .setType(vehicleType_20Feet)
+                                        .setType(vehicleType_22Feet)
+//                                        .setLatestArrival(24)
                                         .build();
 
         VehicleImpl _32FeetVehicle_1 = VehicleImpl.Builder.newInstance("32FeetVehicle_Id:1")
                                         .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
                                         .setType(vehicleType_32Feet)
-                                        .build();
-
-        VehicleImpl _32FeetVehicle_2 = VehicleImpl.Builder.newInstance("32FeetVehicle_Id:2")
-                                        .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
-                                        .setType(vehicleType_32Feet)
+//                                        .setLatestArrival(24)
                                         .build();
 
         Collection<Shipment> shipments = new ArrayList<>();
@@ -134,6 +179,10 @@ public class RivigoRegionalVRP {
                         shipmentBuilder.setDeliveryServiceTime(1)
                                         .setDeliveryTimeWindow(TimeWindow.newInstance(0,13-dispatchTime));
                     }
+                    else if (i==0 && j==4) {
+                        shipmentBuilder.setDeliveryServiceTime(1)
+                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,14-dispatchTime));
+                    }
                     else if (i==0 && j==5) {
                         shipmentBuilder.setDeliveryServiceTime(1)
                                         .setDeliveryTimeWindow(TimeWindow.newInstance(0,13-dispatchTime));
@@ -160,12 +209,13 @@ public class RivigoRegionalVRP {
          * setup problem
 		 */
         VehicleRoutingProblem.Builder vrpBuilder = VehicleRoutingProblem.Builder.newInstance();
+        vrpBuilder.addVehicle(_14FeetVehicle_1);
+        vrpBuilder.addVehicle(_17FeetVehicle_1);
         vrpBuilder.addVehicle(_20FeetVehicle_1);
-        vrpBuilder.addVehicle(_20FeetVehicle_2);
+        vrpBuilder.addVehicle(_22FeetVehicle_1);
         vrpBuilder.addVehicle(_32FeetVehicle_1);
-        vrpBuilder.addVehicle(_32FeetVehicle_2);
         vrpBuilder.addAllJobs(shipments);
-        vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.FINITE);
+        vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.INFINITE);
         GreatCircleCosts greatCircleCosts = new GreatCircleCosts(DistanceUnit.Kilometer);
         greatCircleCosts.setSpeed(avgVehicleSpeedInKMPH);
         vrpBuilder.setRoutingCost(greatCircleCosts);
