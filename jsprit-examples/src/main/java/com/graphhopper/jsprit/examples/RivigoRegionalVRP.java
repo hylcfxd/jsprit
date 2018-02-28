@@ -74,12 +74,12 @@ public class RivigoRegionalVRP {
          */
 
         VehicleTypeImpl.Builder _20FeetVehicleBuilder = VehicleTypeImpl.Builder.newInstance("20_Feet_VehicleType")
-                                                        .addCapacityDimension(0, 50)
+                                                        .addCapacityDimension(0, 2)
                                                         .setCostPerDistance(_20_Feet_Vehicle_Transportation_Cost_Per_Km);
         VehicleType vehicleType_20Feet = _20FeetVehicleBuilder.build();
 
         VehicleTypeImpl.Builder _32FeetVehicleTypeBuilder = VehicleTypeImpl.Builder.newInstance("32_Feet_VehicleType")
-                                                            .addCapacityDimension(0, 70)
+                                                            .addCapacityDimension(0, 3)
                                                             .setCostPerDistance(_32_Feet_Vehicle_Transportation_Cost_Per_Km);
         VehicleType vehicleType_32Feet = _32FeetVehicleTypeBuilder.build();
 
@@ -96,7 +96,6 @@ public class RivigoRegionalVRP {
                                         .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
                                         .setType(vehicleType_20Feet)
                                         .build();
-
 
         VehicleImpl _32FeetVehicle_1 = VehicleImpl.Builder.newInstance("32FeetVehicle_Id:1")
                                         .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
@@ -116,30 +115,36 @@ public class RivigoRegionalVRP {
                     Shipment.Builder shipmentBuilder = Shipment.Builder.newInstance(i+" to "+j).addSizeDimension(0,demands[i][j])
                         .setPickupLocation(loc(Coordinate.newInstance(locations.get(i).get(1), locations.get(i).get(0))))
                         .setDeliveryLocation(loc(Coordinate.newInstance(locations.get(j).get(1), locations.get(j).get(0))))
-                        .setPickupServiceTime(1)
-                        .setDeliveryServiceTime(1)
                         ;
 
-//                    if (i==0 && j==1) {
-//                        shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(0,14));
-//                    }
-//                    else if (i==0 && j==2) {
-//                        shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(0,13));
-//                    }
-//                    else if (i==0 && j==3) {
-//                        shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(0,13));
-//                    }
-//                    else if (i==0 && j==5) {
-//                        shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(0,13));
-//                    }
-//                    else if (i==5 && j==0) {
-//                        shipmentBuilder.setPickupTimeWindow(TimeWindow.newInstance(14,16));
-//                        shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(0,22));
-//                    }
-//                    else if (i==5 && j==2) {
-//                        shipmentBuilder.setPickupTimeWindow(TimeWindow.newInstance(14,16));
-//                        shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(0,13));
-//                    }
+                    if (i==0 && j==1) {
+                        shipmentBuilder.setDeliveryServiceTime(1)
+                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,14));
+                    }
+                    else if (i==0 && j==2) {
+                        shipmentBuilder.setDeliveryServiceTime(1)
+                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,13));
+                    }
+                    else if (i==0 && j==3) {
+                        shipmentBuilder.setDeliveryServiceTime(1)
+                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,13));
+                    }
+                    else if (i==0 && j==5) {
+                        shipmentBuilder.setDeliveryServiceTime(1)
+                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,13));
+                    }
+                    else if (i==5 && j==0) {
+                        shipmentBuilder.setPickupServiceTime(1)
+                                        .setDeliveryServiceTime(1)
+                                        .setPickupTimeWindow(TimeWindow.newInstance(14,16))
+                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,22));
+                    }
+                    else if (i==5 && j==2) {
+                        shipmentBuilder.setPickupServiceTime(1)
+                                        .setDeliveryServiceTime(1)
+                                        .setPickupTimeWindow(TimeWindow.newInstance(0,9))
+                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,13));
+                    }
 
 //                    if (i==0 && j==1) {
 //                        shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(0,14-dispatchTime));
@@ -178,7 +183,7 @@ public class RivigoRegionalVRP {
         vrpBuilder.addVehicle(_32FeetVehicle_1);
         vrpBuilder.addVehicle(_32FeetVehicle_2);
         vrpBuilder.addAllJobs(shipments);
-//        vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.INFINITE);
+        vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.FINITE);
         GreatCircleCosts greatCircleCosts = new GreatCircleCosts(DistanceUnit.Kilometer);
         greatCircleCosts.setSpeed(50);
         vrpBuilder.setRoutingCost(greatCircleCosts);
