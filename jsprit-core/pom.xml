@@ -41,6 +41,11 @@
             <artifactId>slf4j-api</artifactId>
             <version>${logger.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.google.maps</groupId>
+            <artifactId>google-maps-services</artifactId>
+            <version>0.2.2</version>
+        </dependency>
 
     </dependencies>
 

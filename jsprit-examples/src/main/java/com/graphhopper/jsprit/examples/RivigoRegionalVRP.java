@@ -17,7 +17,7 @@ import com.graphhopper.jsprit.core.problem.vehicle.VehicleTypeImpl;
 import com.graphhopper.jsprit.core.reporting.SolutionPrinter;
 import com.graphhopper.jsprit.core.util.Coordinate;
 import com.graphhopper.jsprit.core.util.DistanceUnit;
-import com.graphhopper.jsprit.core.util.GreatCircleCosts;
+import com.graphhopper.jsprit.core.util.GoogleCosts;
 import com.graphhopper.jsprit.core.util.Solutions;
 import com.graphhopper.jsprit.io.problem.VrpXMLWriter;
 import com.graphhopper.jsprit.util.Examples;
@@ -49,7 +49,7 @@ public class RivigoRegionalVRP {
          * Only INTEGER values allowed
          */
         final int dispatchTime = 5; //In Hours
-        final int avgVehicleSpeedInKMPH = 50;
+        final int avgVehicleSpeedInKMPH = 30;
 
         final int _14_Feet_Vehicle_Capacity_In_KGs = 2500;
         final int _17_Feet_Vehicle_Capacity_In_KGs = 3000;
@@ -75,19 +75,19 @@ public class RivigoRegionalVRP {
         locations.add(createLocation(30.897212,75.8741285));
 
         int[][] demands = new int[][] {
-//            {0,1,3,1,0,2},
-//            {0,0,0,0,0,0},
-//            {0,0,0,0,0,0},
-//            {0,0,0,0,0,0},
-//            {0,0,0,0,0,0},
-//            {1,0,1,0,0,0}
+            {0,1,3,1,0,2},
+            {0,0,0,0,0,0},
+            {0,0,0,0,0,0},
+            {0,0,0,0,0,0},
+            {0,0,0,0,0,0},
+            {1,0,1,0,0,0}
 
-            {206, 60, 271, 64, 16, 216},
-            {4, 1, 5, 1, 0, 4},
-            {6, 1, 8, 2, 0, 7},
-            {27, 7, 35, 8, 2, 28},
-            {0, 0, 0, 0, 0, 0},
-            {107, 31, 141, 33, 8, 113}
+//            {206, 60, 271, 64, 16, 216},
+//            {4, 1, 5, 1, 0, 4},
+//            {6, 1, 8, 2, 0, 7},
+//            {27, 7, 35, 8, 2, 28},
+//            {0, 0, 0, 0, 0, 0},
+//            {107, 31, 141, 33, 8, 113}
         };
 
         Examples.createOutputFolder();
@@ -190,7 +190,7 @@ public class RivigoRegionalVRP {
                     else if (i==5 && j==0) {
                         shipmentBuilder.setPickupServiceTime(1)
                                         .setDeliveryServiceTime(1)
-                                        .setPickupTimeWindow(TimeWindow.newInstance(14-dispatchTime,16-dispatchTime))
+                                        .setPickupTimeWindow(TimeWindow.newInstance(14-dispatchTime,17-dispatchTime))
                                         .setDeliveryTimeWindow(TimeWindow.newInstance(0,22-dispatchTime));
                     }
                     else if (i==5 && j==2) {
@@ -216,9 +216,12 @@ public class RivigoRegionalVRP {
         vrpBuilder.addVehicle(_32FeetVehicle_1);
         vrpBuilder.addAllJobs(shipments);
         vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.INFINITE);
-        GreatCircleCosts greatCircleCosts = new GreatCircleCosts(DistanceUnit.Kilometer);
-        greatCircleCosts.setSpeed(avgVehicleSpeedInKMPH);
-        vrpBuilder.setRoutingCost(greatCircleCosts);
+        GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer);
+        googleCosts.setSpeed(avgVehicleSpeedInKMPH);
+        vrpBuilder.setRoutingCost(googleCosts);
+//        GreatCircleCosts greatCircleCosts = new GreatCircleCosts(DistanceUnit.Kilometer);
+//        greatCircleCosts.setSpeed(avgVehicleSpeedInKMPH);
+//        vrpBuilder.setRoutingCost(greatCircleCosts);
         VehicleRoutingProblem problem = vrpBuilder.build();
 
 		/**
