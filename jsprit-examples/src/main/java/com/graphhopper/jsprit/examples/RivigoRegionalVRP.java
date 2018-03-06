@@ -48,15 +48,24 @@ public class RivigoRegionalVRP {
         /**
          * Only INTEGER values allowed
          */
-        final int dispatchTime = 5; //In Hours
+        //Time in Hours
+        final int vehicleDispatchTimeFromPC = 5;
+        final int pickupServiceTime = 1;
+        final int deliveryServiceTime = 1;
+        final int regionalTat = 24;
+        final int oneDay = 24;
+
+        //Avg. Vehicle Speed in KMPH
         final int avgVehicleSpeedInKMPH = 30;
 
+        //Vehicle capacity in Kgs
         final int _14_Feet_Vehicle_Capacity_In_KGs = 2500;
         final int _17_Feet_Vehicle_Capacity_In_KGs = 3000;
         final int _20_Feet_Vehicle_Capacity_In_KGs = 4000;
         final int _22_Feet_Vehicle_Capacity_In_KGs = 5000;
         final int _32_Feet_Vehicle_Capacity_In_KGs = 10000;
 
+        //Transportation Cost in Rs.
         final int _14_Feet_Vehicle_Transportation_Cost_Per_Km = 15;
         final int _17_Feet_Vehicle_Transportation_Cost_Per_Km = 17;
         final int _20_Feet_Vehicle_Transportation_Cost_Per_Km = 20;
@@ -64,7 +73,7 @@ public class RivigoRegionalVRP {
         final int _32_Feet_Vehicle_Transportation_Cost_Per_Km = 32;
 
         /**
-         * Input locations and demands
+         * Input locations, demands and cutoffs
          */
         List<List<Double>> locations = new ArrayList<>();
         locations.add(createLocation(30.236,76.861));
@@ -89,6 +98,9 @@ public class RivigoRegionalVRP {
 //            {0, 0, 0, 0, 0, 0},
 //            {107, 31, 141, 33, 8, 113}
         };
+
+        int[][] deliveryTimeWindow = new int[][] {{0, 22}, {0, 14}, {0,13}, {0,13}, {0,14}, {0,13}};
+        int[][] pickupTimeWindow = new int[][] {{0,24}, {0,17}, {0,17}, {0,17}, {0,17}, {0,17}};
 
         Examples.createOutputFolder();
 
@@ -124,81 +136,53 @@ public class RivigoRegionalVRP {
         /**
          * Vehicle Builder Factory
          */
-        VehicleImpl _14FeetVehicle_1 = VehicleImpl.Builder.newInstance("14FeetVehicle_Id:1")
+        VehicleImpl _14FeetVehicle_1 = VehicleImpl.Builder.newInstance("14FeetVehicle_Id:1").setType(vehicleType_14Feet)
                                         .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
-                                        .setType(vehicleType_14Feet)
+                                        .setEarliestStart(vehicleDispatchTimeFromPC)
 //                                        .setLatestArrival(24)
                                         .build();
 
-        VehicleImpl _17FeetVehicle_1 = VehicleImpl.Builder.newInstance("17FeetVehicle_Id:1")
+        VehicleImpl _17FeetVehicle_1 = VehicleImpl.Builder.newInstance("17FeetVehicle_Id:1").setType(vehicleType_17Feet)
                                         .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
-                                        .setType(vehicleType_17Feet)
+                                        .setEarliestStart(vehicleDispatchTimeFromPC)
 //                                        .setLatestArrival(24)
                                         .build();
 
-        VehicleImpl _20FeetVehicle_1 = VehicleImpl.Builder.newInstance("20FeetVehicle_Id:1")
+        VehicleImpl _20FeetVehicle_1 = VehicleImpl.Builder.newInstance("20FeetVehicle_Id:1").setType(vehicleType_20Feet)
                                         .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
-                                        .setType(vehicleType_20Feet)
+                                        .setEarliestStart(vehicleDispatchTimeFromPC)
 //                                        .setLatestArrival(24)
                                         .build();
 
-        VehicleImpl _22FeetVehicle_1 = VehicleImpl.Builder.newInstance("22FeetVehicle_Id:1")
+        VehicleImpl _22FeetVehicle_1 = VehicleImpl.Builder.newInstance("22FeetVehicle_Id:1").setType(vehicleType_22Feet)
                                         .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
-                                        .setType(vehicleType_22Feet)
+                                        .setEarliestStart(vehicleDispatchTimeFromPC)
 //                                        .setLatestArrival(24)
                                         .build();
 
-        VehicleImpl _32FeetVehicle_1 = VehicleImpl.Builder.newInstance("32FeetVehicle_Id:1")
+        VehicleImpl _32FeetVehicle_1 = VehicleImpl.Builder.newInstance("32FeetVehicle_Id:1").setType(vehicleType_32Feet)
                                         .setStartLocation(loc(Coordinate.newInstance(locations.get(0).get(1),locations.get(0).get(0))))
-                                        .setType(vehicleType_32Feet)
+                                        .setEarliestStart(vehicleDispatchTimeFromPC)
 //                                        .setLatestArrival(24)
                                         .build();
 
         Collection<Shipment> shipments = new ArrayList<>();
 
-        for (int i=0; i<demands.length; i++) {
-            for (int j=0; j<demands.length; j++) {
+        for (int i=0; i<locations.size(); i++) {
+            for (int j=0; j<locations.size(); j++) {
                 if (i != j && demands[i][j] != 0) {
                     Shipment.Builder shipmentBuilder = Shipment.Builder.newInstance(i+" to "+j).addSizeDimension(0,demands[i][j])
                         .setPickupLocation(loc(Coordinate.newInstance(locations.get(i).get(1), locations.get(i).get(0))))
                         .setDeliveryLocation(loc(Coordinate.newInstance(locations.get(j).get(1), locations.get(j).get(0))))
-                        ;
+                        /**
+                         * Time Window Constraints
+                         */
+                        .setDeliveryServiceTime(deliveryServiceTime)
+                        .setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[j][0], deliveryTimeWindow[j][1]));
+                        if (i!=0)
+                            shipmentBuilder.setPickupServiceTime(pickupServiceTime)
+                                            .setPickupTimeWindow(TimeWindow.newInstance(pickupTimeWindow[j][0],pickupTimeWindow[j][1]));
 
-                    /**
-                     * Time Window Constraints
-                     */
-                    if (i==0 && j==1) {
-                        shipmentBuilder.setDeliveryServiceTime(1)
-                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,14-dispatchTime));
-                    }
-                    else if (i==0 && j==2) {
-                        shipmentBuilder.setDeliveryServiceTime(1)
-                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,13-dispatchTime));
-                    }
-                    else if (i==0 && j==3) {
-                        shipmentBuilder.setDeliveryServiceTime(1)
-                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,13-dispatchTime));
-                    }
-                    else if (i==0 && j==4) {
-                        shipmentBuilder.setDeliveryServiceTime(1)
-                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,14-dispatchTime));
-                    }
-                    else if (i==0 && j==5) {
-                        shipmentBuilder.setDeliveryServiceTime(1)
-                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,13-dispatchTime));
-                    }
-                    else if (i==5 && j==0) {
-                        shipmentBuilder.setPickupServiceTime(1)
-                                        .setDeliveryServiceTime(1)
-                                        .setPickupTimeWindow(TimeWindow.newInstance(14-dispatchTime,17-dispatchTime))
-                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,22-dispatchTime));
-                    }
-                    else if (i==5 && j==2) {
-                        shipmentBuilder.setPickupServiceTime(1)
-                                        .setDeliveryServiceTime(1)
-                                        .setPickupTimeWindow(TimeWindow.newInstance(0,9-dispatchTime))
-                                        .setDeliveryTimeWindow(TimeWindow.newInstance(0,13-dispatchTime));
-                    }
                     Shipment shipment = shipmentBuilder.build();
                     shipments.add(shipment);
                 }
@@ -215,7 +199,7 @@ public class RivigoRegionalVRP {
         vrpBuilder.addVehicle(_22FeetVehicle_1);
         vrpBuilder.addVehicle(_32FeetVehicle_1);
         vrpBuilder.addAllJobs(shipments);
-        vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.INFINITE);
+        vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.FINITE);
         GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer);
         googleCosts.setSpeed(avgVehicleSpeedInKMPH);
         vrpBuilder.setRoutingCost(googleCosts);
