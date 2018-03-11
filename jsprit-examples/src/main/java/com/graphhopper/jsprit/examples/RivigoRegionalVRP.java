@@ -25,6 +25,7 @@ import com.graphhopper.jsprit.util.Examples;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class RivigoRegionalVRP {
 
@@ -32,7 +33,7 @@ public class RivigoRegionalVRP {
      * Only INTEGER values allowed
      */
     private enum VehicleFleetType {
-        _14_Feet, _17_Feet, _20_Feet, _22_Feet, _32_Feet;
+        _14_Feet, _17_Feet, _20_Feet, _22_Feet, _32_Feet
     }
 
     //Vehicle capacity in Kgs
@@ -53,11 +54,10 @@ public class RivigoRegionalVRP {
     private static final int avgVehicleSpeedInKMPH = 30;
 
     //Time in Hours
-    private static final int vehicleDispatchTimeFromPC = 5;
-    private static final int pickupServiceTime = 1;
-    private static final int deliveryServiceTime = 1;
+    private static final int vehicleDispatchTimeFromPC = 0;
+    private static final int pickupServiceTimeForTouchingNode = 1;
+    private static final int deliveryServiceTimeForTouchingNode = 1;
     private static final int oneDay = 24;
-
 
     public static void main(String[] args) {
         solver();
@@ -74,7 +74,7 @@ public class RivigoRegionalVRP {
         return Location.Builder.newInstance().setCoordinate(coordinate).build();
     }
 
-    private static Collection<VehicleImpl> vehicleFactory(VehicleFleetType vehicleFleetType, int count, List<Double> coordinates) {
+    private static Collection<VehicleImpl> vehicleFactory(VehicleFleetType vehicleFleetType, int count, List<Double> coordinates, double vehicleDispatchTimeFromPC) {
         /**
          * Vehicle Type Builder Factory
          */
@@ -117,13 +117,16 @@ public class RivigoRegionalVRP {
         /**
          * Vehicle Builder Factory
          */
+        GoogleCosts googleCosts = new GoogleCosts();
+        Map<Location, Long> locationToIdMap =  googleCosts.getLocationToIdMap();
         Collection<VehicleImpl> vehicles = new ArrayList<>();
         for (int i=1; i<=count; i++) {
-            VehicleImpl vehicle = VehicleImpl.Builder.newInstance(vehicleFleetType.toString()+"Vehicle_Id:"+i)
+            VehicleImpl vehicle = VehicleImpl.Builder.newInstance(vehicleFleetType.toString()+"Vehicle_Id:"+i+"-"+locationToIdMap.get(loc(Coordinate.newInstance(coordinates.get(1),coordinates.get(0)))))
                 .setType(vehicleTypeFactory)
                 .setStartLocation(loc(Coordinate.newInstance(coordinates.get(1), coordinates.get(0))))
                 .setEarliestStart(vehicleDispatchTimeFromPC)
-//                .setLatestArrival(24)
+                .setReturnToDepot(true)
+//                .setLatestArrival(24+vehicleDispatchTimeFromPC)
                 .build();
             vehicles.add(vehicle);
         }
@@ -144,12 +147,20 @@ public class RivigoRegionalVRP {
         locations.add(createLocation(30.897212,75.8741285));
 
         int[][] demands = new int[][] {
-            {0,1,3,1,0,2},
+
+            {0,100,300,100,0,200},
             {0,0,0,0,0,0},
             {0,0,0,0,0,0},
             {0,0,0,0,0,0},
             {0,0,0,0,0,0},
-            {1,0,1,0,0,0}
+            {100,0,100,0,0,0}
+
+//            {206, 60, 271, 64, 0, 216},
+//            {0, 0, 0, 0, 0, 0},
+//            {0, 0, 0, 0, 0, 0},
+//            {50, 0, 50, 0, 0, 50},
+//            {0, 0, 0, 0, 0, 0},
+//            {107, 50, 141, 50, 0, 113}
 
 //            {206, 60, 271, 64, 16, 216},
 //            {4, 1, 5, 1, 0, 4},
@@ -162,26 +173,42 @@ public class RivigoRegionalVRP {
         int[][] deliveryTimeWindow = new int[][] {{0, 22}, {0, 14}, {0,13}, {0,13}, {0,14}, {0,13}};
         int[][] pickupTimeWindow = new int[][] {{0,24}, {0,17}, {0,17}, {0,17}, {0,17}, {0,17}};
 
+//        int[][] deliveryTimeWindow = new int[][] {{16,24}, {0,14}, {0,13}, {0,13}, {0,14}, {0,13}};
+//        int[][] pickupTimeWindow = new int[][] {{11,15}, {15,24}, {18,24}, {19,24}, {15,24}, {22,24}};
+
         Examples.createOutputFolder();
 
         Collection<Shipment> shipments = new ArrayList<>();
-        for (int i=0; i<locations.size(); i++) {
-            for (int j=0; j<locations.size(); j++) {
-                if (i != j && demands[i][j] != 0) {
-                    Shipment.Builder shipmentBuilder = Shipment.Builder.newInstance(i+" to "+j).addSizeDimension(0,demands[i][j])
-                        .setPickupLocation(loc(Coordinate.newInstance(locations.get(i).get(1), locations.get(i).get(0))))
-                        .setDeliveryLocation(loc(Coordinate.newInstance(locations.get(j).get(1), locations.get(j).get(0))))
-                        /**
-                         * Time Window Constraints
-                         */
-                        .setDeliveryServiceTime(deliveryServiceTime)
-                        .setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[j][0], deliveryTimeWindow[j][1]));
-                        if (i!=0) {
-                            shipmentBuilder.setPickupServiceTime(pickupServiceTime)
-                                .setPickupTimeWindow(TimeWindow.newInstance(pickupTimeWindow[j][0], pickupTimeWindow[j][1]));
+        for (int k=0; k<1; k++) {
+            for (int i = 0; i < locations.size(); i++) {
+                for (int j = 0; j < locations.size(); j++) {
+                    if (i != j && demands[i][j] != 0) {
+                        Shipment.Builder shipmentBuilder = Shipment.Builder.newInstance(k+"."+i + " to " + k+"."+ j).addSizeDimension(0, demands[i][j])
+                            .setPickupLocation(loc(Coordinate.newInstance(locations.get(i).get(1), locations.get(i).get(0))))
+                            .setDeliveryLocation(loc(Coordinate.newInstance(locations.get(j).get(1), locations.get(j).get(0))))
+                            /**
+                             * Time Window Constraints
+                             */
+                            // For touching nodes
+                            .setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[j][0]+(oneDay*k), deliveryTimeWindow[j][1]+(oneDay*k)))
+                            .setDeliveryServiceTime(deliveryServiceTimeForTouchingNode)
+                            .setPickupTimeWindow(TimeWindow.newInstance(pickupTimeWindow[j][0]+(oneDay*k), pickupTimeWindow[j][1]+(oneDay*k)))
+                            .setPickupServiceTime(pickupServiceTimeForTouchingNode);
+
+                        // Override service time for destination/source PC
+                        if (i==0) {
+                            shipmentBuilder.setPickupServiceTime(pickupServiceTimeForTouchingNode+5);
                         }
-                    Shipment shipment = shipmentBuilder.build();
-                    shipments.add(shipment);
+                        if (j==0) {
+                            shipmentBuilder.setDeliveryServiceTime(deliveryServiceTimeForTouchingNode+1);
+                        }
+                        // Extending window for corner case
+//                        if (j==2) {
+//                            shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[j][0]+(oneDay*(k+1)), deliveryTimeWindow[j][1]+(oneDay*(k+1))));
+//                        }
+                        Shipment shipment = shipmentBuilder.build();
+                        shipments.add(shipment);
+                    }
                 }
             }
         }
@@ -190,11 +217,43 @@ public class RivigoRegionalVRP {
          * setup problem
 		 */
         VehicleRoutingProblem.Builder vrpBuilder = VehicleRoutingProblem.Builder.newInstance();
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 1, locations.get(0)));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 1, locations.get(0)));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 1, locations.get(0)));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 1, locations.get(0)));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 1, locations.get(0)));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(0), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(0), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(0), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(0), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(0), vehicleDispatchTimeFromPC));
+
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(1), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(1), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(1), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(1), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(1), vehicleDispatchTimeFromPC));
+
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(2), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(2), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(2), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(2), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(2), vehicleDispatchTimeFromPC));
+
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(3), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(3), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(3), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(3), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(3), vehicleDispatchTimeFromPC));
+
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(4), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(4), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(4), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(4), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(4), vehicleDispatchTimeFromPC));
+
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(5), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(5), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(5), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(5), vehicleDispatchTimeFromPC));
+        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(5), vehicleDispatchTimeFromPC));
+
+
         vrpBuilder.addAllJobs(shipments);
         vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.FINITE);
         GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer);

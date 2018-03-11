@@ -33,7 +33,9 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
     }
 
    public GoogleCosts() {
-        super();
+       super();
+       createLocationToIdMapping();
+       fetchSectionalTatData();
     }
 
     public GoogleCosts(DistanceUnit distanceUnit) {
@@ -41,6 +43,10 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
         createLocationToIdMapping();
         fetchSectionalTatData();
         this.distanceUnit = distanceUnit;
+    }
+
+    public Map<Location, Long> getLocationToIdMap() {
+        return locationToIdMap;
     }
 
 
