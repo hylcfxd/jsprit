@@ -21,7 +21,14 @@ import com.graphhopper.jsprit.core.util.GoogleCosts;
 import com.graphhopper.jsprit.core.util.Solutions;
 import com.graphhopper.jsprit.io.problem.VrpXMLWriter;
 import com.graphhopper.jsprit.util.Examples;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -44,23 +51,24 @@ public class RivigoRegionalVRP {
     private static final int _32_Feet_Vehicle_Capacity_In_KGs = 10000;
 
     //Transportation Cost in Rs.
-    private static final int _14_Feet_Vehicle_Transportation_Cost_Per_Km = 15;
-    private static final int _17_Feet_Vehicle_Transportation_Cost_Per_Km = 17;
-    private static final int _20_Feet_Vehicle_Transportation_Cost_Per_Km = 20;
-    private static final int _22_Feet_Vehicle_Transportation_Cost_Per_Km = 22;
-    private static final int _32_Feet_Vehicle_Transportation_Cost_Per_Km = 32;
+    private static final double _14_Feet_Vehicle_Transportation_Cost_Per_Km = 15;
+    private static final double _17_Feet_Vehicle_Transportation_Cost_Per_Km = 17;
+    private static final double _20_Feet_Vehicle_Transportation_Cost_Per_Km = 20;
+    private static final double _22_Feet_Vehicle_Transportation_Cost_Per_Km = 22;
+    private static final double _32_Feet_Vehicle_Transportation_Cost_Per_Km = 32;
 
     //Avg. Vehicle Speed in KMPH
-    private static final int avgVehicleSpeedInKMPH = 30;
+    private static final double avgVehicleSpeedInKMPH = 30;
 
     //Time in Hours
-    private static final int vehicleDispatchTimeFromPC = 0;
-    private static final int pickupServiceTimeForTouchingNode = 1;
-    private static final int deliveryServiceTimeForTouchingNode = 1;
-    private static final int oneDay = 24;
+    private static final double vehicleDispatchTimeFromPC = 0;
+    private static final double pickupServiceTimeForTouchingNode = 1;
+    private static final double deliveryServiceTimeForTouchingNode = 1;
+    private static final double oneDay = 24;
 
     public static void main(String[] args) {
         solver();
+        parseOutput();
     }
 
     private static List<Double> createLocation(Double lat, Double lng) {
@@ -72,6 +80,17 @@ public class RivigoRegionalVRP {
 
     private static Location loc(Coordinate coordinate) {
         return Location.Builder.newInstance().setCoordinate(coordinate).build();
+    }
+
+    private static List<Integer> splitDemand(int demand) {
+
+        List<Integer> splitDemand = new ArrayList<>();
+        while (demand>_32_Feet_Vehicle_Capacity_In_KGs) {
+            splitDemand.add(_32_Feet_Vehicle_Capacity_In_KGs);
+            demand -= _32_Feet_Vehicle_Capacity_In_KGs;
+        }
+        splitDemand.add(demand);
+        return splitDemand;
     }
 
     private static Collection<VehicleImpl> vehicleFactory(VehicleFleetType vehicleFleetType, int count, List<Double> coordinates, double vehicleDispatchTimeFromPC) {
@@ -126,7 +145,7 @@ public class RivigoRegionalVRP {
                 .setStartLocation(loc(Coordinate.newInstance(coordinates.get(1), coordinates.get(0))))
                 .setEarliestStart(vehicleDispatchTimeFromPC)
                 .setReturnToDepot(true)
-//                .setLatestArrival(24+vehicleDispatchTimeFromPC)
+                .setLatestArrival(24+vehicleDispatchTimeFromPC+5)
                 .build();
             vehicles.add(vehicle);
         }
@@ -147,67 +166,64 @@ public class RivigoRegionalVRP {
         locations.add(createLocation(30.897212,75.8741285));
 
         int[][] demands = new int[][] {
+            {0,3631,16425,3908,1014,13101},
+            {913,0,0,0,0,0},
+            {1529,0,0,0,0,0},
+            {6169,0,0,0,0,0},
+            {100,0,0,0,0,0},
+            {24520,0,0,0,0,0}
 
-            {0,100,300,100,0,200},
-            {0,0,0,0,0,0},
-            {0,0,0,0,0,0},
-            {0,0,0,0,0,0},
-            {0,0,0,0,0,0},
-            {100,0,100,0,0,0}
-
-//            {206, 60, 271, 64, 0, 216},
-//            {0, 0, 0, 0, 0, 0},
-//            {0, 0, 0, 0, 0, 0},
-//            {50, 0, 50, 0, 0, 50},
-//            {0, 0, 0, 0, 0, 0},
-//            {107, 50, 141, 50, 0, 113}
-
-//            {206, 60, 271, 64, 16, 216},
-//            {4, 1, 5, 1, 0, 4},
-//            {6, 1, 8, 2, 0, 7},
-//            {27, 7, 35, 8, 2, 28},
-//            {0, 0, 0, 0, 0, 0},
-//            {107, 31, 141, 33, 8, 113}
+//            {0,100,300,100,0,200},
+//            {0,0,0,0,0,0},
+//            {0,0,0,0,0,0},
+//            {0,0,0,0,0,0},
+//            {0,0,0,0,0,0},
+//            {100,0,100,0,0,0}
         };
 
-        int[][] deliveryTimeWindow = new int[][] {{0, 22}, {0, 14}, {0,13}, {0,13}, {0,14}, {0,13}};
-        int[][] pickupTimeWindow = new int[][] {{0,24}, {0,17}, {0,17}, {0,17}, {0,17}, {0,17}};
+//        int[][] deliveryTimeWindow = new int[][] {{0, 22}, {0, 14}, {0,13}, {0,13}, {0,14}, {0,13}};
+//        int[][] pickupTimeWindow = new int[][] {{0,24}, {0,17}, {0,17}, {0,17}, {0,17}, {0,17}};
 
-//        int[][] deliveryTimeWindow = new int[][] {{16,24}, {0,14}, {0,13}, {0,13}, {0,14}, {0,13}};
-//        int[][] pickupTimeWindow = new int[][] {{11,15}, {15,24}, {18,24}, {19,24}, {15,24}, {22,24}};
+        int[][] deliveryTimeWindow = new int[][] {{22,28}, {0,14}, {0,13}, {0,13}, {0,14}, {0,13}};
+        int[][] pickupTimeWindow = new int[][] {{3,5}, {15,24}, {18,24}, {19,24}, {15,24}, {22,24}};
 
         Examples.createOutputFolder();
 
         Collection<Shipment> shipments = new ArrayList<>();
-        for (int k=0; k<1; k++) {
-            for (int i = 0; i < locations.size(); i++) {
-                for (int j = 0; j < locations.size(); j++) {
-                    if (i != j && demands[i][j] != 0) {
-                        Shipment.Builder shipmentBuilder = Shipment.Builder.newInstance(k+"."+i + " to " + k+"."+ j).addSizeDimension(0, demands[i][j])
-                            .setPickupLocation(loc(Coordinate.newInstance(locations.get(i).get(1), locations.get(i).get(0))))
-                            .setDeliveryLocation(loc(Coordinate.newInstance(locations.get(j).get(1), locations.get(j).get(0))))
-                            /**
-                             * Time Window Constraints
-                             */
-                            // For touching nodes
-                            .setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[j][0]+(oneDay*k), deliveryTimeWindow[j][1]+(oneDay*k)))
-                            .setDeliveryServiceTime(deliveryServiceTimeForTouchingNode)
-                            .setPickupTimeWindow(TimeWindow.newInstance(pickupTimeWindow[j][0]+(oneDay*k), pickupTimeWindow[j][1]+(oneDay*k)))
-                            .setPickupServiceTime(pickupServiceTimeForTouchingNode);
+        for (int day=0; day<1; day++) {
+            for (int from = 0; from < locations.size(); from++) {
+                for (int to = 0; to < locations.size(); to++) {
+                    if (from != to && demands[from][to] != 0) {
+                        List<Integer> splitDemand = splitDemand(demands[from][to]);
+                        for (int demand=0; demand < splitDemand.size(); demand++) {
+                            Shipment.Builder shipmentBuilder = Shipment.Builder.newInstance(day + "." + from + " to " + day + "." + to + " - "+(demand+1))
+                                .addSizeDimension(0, splitDemand.get(demand))
+                                .setPickupLocation(loc(Coordinate.newInstance(locations.get(from).get(1), locations.get(from).get(0))))
+                                .setDeliveryLocation(loc(Coordinate.newInstance(locations.get(to).get(1), locations.get(to).get(0))))
+                                /**
+                                 * Time Window Constraints
+                                 */
+                                // For touching nodes
+                                .setPickupTimeWindow(TimeWindow.newInstance(pickupTimeWindow[from][0] + (oneDay * day), pickupTimeWindow[from][1] + (oneDay * day)))
+                                .setPickupServiceTime(pickupServiceTimeForTouchingNode)
+                                .setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[to][0] + (oneDay * day), deliveryTimeWindow[to][1] + (oneDay * day)))
+                                .setDeliveryServiceTime(deliveryServiceTimeForTouchingNode);
 
-                        // Override service time for destination/source PC
-                        if (i==0) {
-                            shipmentBuilder.setPickupServiceTime(pickupServiceTimeForTouchingNode+5);
+                            // Override service time for destination/source PC
+                            if (from == 0) {
+                                shipmentBuilder.setPickupServiceTime(0);
+                            }
+                            if (to == 0) {
+                                shipmentBuilder.setDeliveryServiceTime(deliveryServiceTimeForTouchingNode);
+                            }
+                            // Extending window by 1 day for intra-cluster movement
+                            if (from != 0 && to != 0) {
+                                shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[to][0] + (oneDay * (day + 1)),
+                                    deliveryTimeWindow[to][1] + (oneDay * (day + 1))));
+                            }
+                            Shipment shipment = shipmentBuilder.build();
+                            shipments.add(shipment);
                         }
-                        if (j==0) {
-                            shipmentBuilder.setDeliveryServiceTime(deliveryServiceTimeForTouchingNode+1);
-                        }
-                        // Extending window for corner case
-//                        if (j==2) {
-//                            shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[j][0]+(oneDay*(k+1)), deliveryTimeWindow[j][1]+(oneDay*(k+1))));
-//                        }
-                        Shipment shipment = shipmentBuilder.build();
-                        shipments.add(shipment);
                     }
                 }
             }
@@ -297,5 +313,95 @@ public class RivigoRegionalVRP {
         Plotter solutionPlotter = new Plotter(problem, Solutions.bestOf(solutions));
         solutionPlotter.plotShipments(true);
         solutionPlotter.plot("output/simpleMixedEnRoutePickupAndDeliveryExample_solution.png", "en-route pd and depot bounded deliveries");
+
+    }
+
+    private static void parseOutput () {
+        try {
+            File inputFile = new File("/home/user/Documents/Rivigo/jsprit/output/mixed-shipments-services-problem-with-solution.xml");
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+            Document doc = dBuilder.parse(inputFile);
+            doc.getDocumentElement().normalize();
+            NodeList solutions = doc.getElementsByTagName("solution");
+            Node firstSolutionNode = solutions.item(0);
+            System.out.println("----------------------------");
+            Element firstSolutionElement = (Element) firstSolutionNode;
+//            System.out.println("Root element : " + doc.getDocumentElement().getNodeName());
+            System.out.println("Solution details:\n");
+            System.out.println("Cost: Rs. "+ firstSolutionElement.getElementsByTagName("cost").item(0).getTextContent());
+            NodeList routeList = firstSolutionElement.getElementsByTagName("route");
+            System.out.println("Vehicles: "+routeList.getLength());
+            System.out.println("--------------------------------------------------------------------");
+            for (int route = 0; route < routeList.getLength(); route++) {
+                Node routeNode = routeList.item(route);
+                if (routeNode.getNodeType() == Node.ELEMENT_NODE) {
+                    Element routeNodeElement = (Element) routeNode;
+                    System.out.println("Vehicle Id: "
+                        + routeNodeElement
+                        .getElementsByTagName("vehicleId")
+                        .item(0)
+                        .getTextContent());
+                    System.out.println("Start Time: "
+                        + routeNodeElement
+                        .getElementsByTagName("start")
+                        .item(0)
+                        .getTextContent()+"\n");
+                    NodeList actList = routeNodeElement.getElementsByTagName("act");
+                    for (int act = 0; act < actList.getLength(); act++) {
+                        Node actNode = actList.item(act);
+                        if (actNode.getNodeType() == Node.ELEMENT_NODE) {
+                            Element actNodeElement = (Element) actNode;
+                            System.out.println("Shipment Type: "
+                                +actNodeElement.getAttribute("type"));
+                            System.out.println("Shipment Id: "
+                                + actNodeElement
+                                .getElementsByTagName("shipmentId")
+                                .item(0)
+                                .getTextContent());
+                            System.out.println("Arrival Time: "
+                                + actNodeElement
+                                .getElementsByTagName("arrTime")
+                                .item(0)
+                                .getTextContent());
+                            System.out.println("Departure Time: "
+                                + actNodeElement
+                                .getElementsByTagName("endTime")
+                                .item(0)
+                                .getTextContent());
+                        }
+                        System.out.println();
+                    }
+                    System.out.println("End Time: "
+                        + routeNodeElement
+                        .getElementsByTagName("end")
+                        .item(0)
+                        .getTextContent());
+                    System.out.println("--------------------------------------------------------------------");
+                }
+                System.out.println();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+//        String csvFile = "/Users/mkyong/csv/abc.csv";
+//        FileWriter writer = new FileWriter(csvFile);
+//
+//        CSVUtils.writeLine(writer, Arrays.asList("a", "b", "c", "d"));
+//
+//        //custom separator + quote
+//        CSVUtils.writeLine(writer, Arrays.asList("aaa", "bb,b", "cc,c"), ',', '"');
+//
+//        //custom separator + quote
+//        CSVUtils.writeLine(writer, Arrays.asList("aaa", "bbb", "cc,c"), '|', '\'');
+//
+//        //double-quotes
+//        CSVUtils.writeLine(writer, Arrays.asList("aaa", "bbb", "cc\"c"));
+//
+//
+//        writer.flush();
+//        writer.close();
+
     }
 }
