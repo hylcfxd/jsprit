@@ -21,6 +21,7 @@ import com.graphhopper.jsprit.core.util.GoogleCosts;
 import com.graphhopper.jsprit.core.util.Solutions;
 import com.graphhopper.jsprit.io.problem.VrpXMLWriter;
 import com.graphhopper.jsprit.util.Examples;
+import org.apache.commons.math3.util.Pair;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -28,9 +29,13 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -61,39 +66,108 @@ public class RivigoRegionalVRP {
     private static final double avgVehicleSpeedInKMPH = 30;
 
     //Time in Hours
+    private static final double oneHour = 1;
+    private static final double oneDay = 24;
     private static final double vehicleDispatchTimeFromPC = 0;
     private static final double pickupServiceTimeForTouchingNode = 1;
     private static final double deliveryServiceTimeForTouchingNode = 1;
-    private static final double oneDay = 24;
+
+    //Input Data
+    private static String salesPlanCSVFile = "/home/user/Documents/Rivigo/jsprit/jsprit-examples/src/main/resources/sales_plan.csv";
+    private static String neo4JLocationCSVFile = "/home/user/Documents/Rivigo/jsprit/jsprit-examples/src/main/resources/neo4j_location.csv";
+    private static List<String> networkNodes = new ArrayList<>();
+    private static Map<String,List<String>> pcToBranchMap= new HashMap<>();
+    private static Map<Pair<String,String>, Double> salesPlan = new HashMap<>();
+    private static Map<String,Coordinate> locationCodeToLatLngMap = new HashMap<>();
+
+    //To ensure branch connectivity to pc
+    private static double minWeightToBeHonoured_In_Kgs = 100;
 
     public static void main(String[] args) {
-        solver();
-        parseOutput();
+        init();
+        solver(true);
+//        parseOutput();
     }
 
-    private static List<Double> createLocation(Double lat, Double lng) {
-        List<Double> loc = new ArrayList<>();
-        loc.add(lat);
-        loc.add(lng);
-        return loc;
-    }
+    private static void init() {
+        String line = "";
+        String cvsSplitBy = ",";
+        int count = 0;
 
-    private static Location loc(Coordinate coordinate) {
-        return Location.Builder.newInstance().setCoordinate(coordinate).build();
-    }
-
-    private static List<Integer> splitDemand(int demand) {
-
-        List<Integer> splitDemand = new ArrayList<>();
-        while (demand>_32_Feet_Vehicle_Capacity_In_KGs) {
-            splitDemand.add(_32_Feet_Vehicle_Capacity_In_KGs);
-            demand -= _32_Feet_Vehicle_Capacity_In_KGs;
+        List<String> clusterHeadList = new ArrayList<>();
+        List<String> processingCenters = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(salesPlanCSVFile))) {
+            while ((line = br.readLine()) != null) {
+                // skipping header
+                if (count==0){
+                    count+=1;
+                    continue;
+                }
+                String[] data = line.split(cvsSplitBy);
+                clusterHeadList.add(data[0]);
+                processingCenters.add(data[1]);
+            }
+            networkNodes = processingCenters;
+            int nonZeroIndex1=-1;
+            int nonZeroIndex2=0;
+            for(int i=0; i<clusterHeadList.size(); i++) {
+                if (!clusterHeadList.get(i).isEmpty()) {
+                    nonZeroIndex1=nonZeroIndex2;
+                    nonZeroIndex2=i;
+                    if (nonZeroIndex1!=nonZeroIndex2) {
+                        List<String> temp = new ArrayList<>();
+                        for (int j=nonZeroIndex1; j<nonZeroIndex2; j++) {
+                            temp.add(processingCenters.get(j));
+                        }
+                        pcToBranchMap.put(clusterHeadList.get(nonZeroIndex1),temp);
+                    }
+                }
+            }
+            List<String> temp = new ArrayList<>();
+            for (int j=nonZeroIndex2; j<clusterHeadList.size(); j++) {
+                temp.add(processingCenters.get(j));
+            }
+            pcToBranchMap.put(clusterHeadList.get(nonZeroIndex2),temp);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        splitDemand.add(demand);
-        return splitDemand;
+
+        count=0;
+        try (BufferedReader br = new BufferedReader(new FileReader(salesPlanCSVFile))) {
+            int startIndex = 2;
+            while ((line = br.readLine()) != null) {
+                // skipping header
+                if (count==0){
+                    count+=1;
+                    continue;
+                }
+                String[] data = line.split(cvsSplitBy);
+                for (int i = 0; i< networkNodes.size(); i++) {
+                    Pair<String,String> odPair = new Pair<>(data[1], networkNodes.get(i));
+                    salesPlan.put(odPair,Double.parseDouble(data[startIndex+i])*1000.0);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        count=0;
+        try (BufferedReader br = new BufferedReader(new FileReader(neo4JLocationCSVFile))) {
+            while ((line = br.readLine()) != null) {
+                // skipping header
+                if (count==0){
+                    count+=1;
+                    continue;
+                }
+                String[] data = line.split(cvsSplitBy);
+                locationCodeToLatLngMap.put(data[2],Coordinate.newInstance(Double.parseDouble(data[4]),Double.parseDouble(data[3])));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
-    private static Collection<VehicleImpl> vehicleFactory(VehicleFleetType vehicleFleetType, int count, List<Double> coordinates, double vehicleDispatchTimeFromPC) {
+    private static Collection<VehicleImpl> vehicleFactory(VehicleFleetType vehicleFleetType, int count, String locationCode, double vehicleDispatchTimeFromPC) {
         /**
          * Vehicle Type Builder Factory
          */
@@ -136,70 +210,68 @@ public class RivigoRegionalVRP {
         /**
          * Vehicle Builder Factory
          */
-        GoogleCosts googleCosts = new GoogleCosts();
-        Map<Location, Long> locationToIdMap =  googleCosts.getLocationToIdMap();
         Collection<VehicleImpl> vehicles = new ArrayList<>();
         for (int i=1; i<=count; i++) {
-            VehicleImpl vehicle = VehicleImpl.Builder.newInstance(vehicleFleetType.toString()+"Vehicle_Id:"+i+"-"+locationToIdMap.get(loc(Coordinate.newInstance(coordinates.get(1),coordinates.get(0)))))
+            VehicleImpl vehicle = VehicleImpl.Builder.newInstance(vehicleFleetType.toString()+"Vehicle_Id:"+i+"-"+locationCode)
                 .setType(vehicleTypeFactory)
-                .setStartLocation(loc(Coordinate.newInstance(coordinates.get(1), coordinates.get(0))))
+                .setStartLocation(loc(locationCodeToLatLngMap.get(locationCode)))
                 .setEarliestStart(vehicleDispatchTimeFromPC)
+                .setLatestArrival(oneDay+vehicleDispatchTimeFromPC+oneHour*5)
                 .setReturnToDepot(true)
-                .setLatestArrival(24+vehicleDispatchTimeFromPC+5)
                 .build();
             vehicles.add(vehicle);
         }
         return vehicles;
     }
 
-    private static void solver() {
+    private static void solver(Boolean debug) {
 
         /**
          * Input locations, demands and cutoffs
          */
-        List<List<Double>> locations = new ArrayList<>();
-        locations.add(createLocation(30.236,76.861));
-        locations.add(createLocation(31.625029,74.918999));
-        locations.add(createLocation(30.684431,76.823187));
-        locations.add(createLocation(31.349958,75.571194));
-        locations.add(createLocation(29.664056,76.9900082));
-        locations.add(createLocation(30.897212,75.8741285));
-
-        int[][] demands = new int[][] {
-            {0,3631,16425,3908,1014,13101},
-            {913,0,0,0,0,0},
-            {1529,0,0,0,0,0},
-            {6169,0,0,0,0,0},
-            {100,0,0,0,0,0},
-            {24520,0,0,0,0,0}
-
-//            {0,100,300,100,0,200},
-//            {0,0,0,0,0,0},
-//            {0,0,0,0,0,0},
-//            {0,0,0,0,0,0},
-//            {0,0,0,0,0,0},
-//            {100,0,100,0,0,0}
-        };
-
-//        int[][] deliveryTimeWindow = new int[][] {{0, 22}, {0, 14}, {0,13}, {0,13}, {0,14}, {0,13}};
-//        int[][] pickupTimeWindow = new int[][] {{0,24}, {0,17}, {0,17}, {0,17}, {0,17}, {0,17}};
+        String cluster = "AMBT1";
+        int[][] demands = getSalesDataOfCluster(cluster);
+        List<String> locationCodes = pcToBranchMap.get(cluster);
+        List<Coordinate> locationCoordinates = getNodeLocationsOfCluster(cluster);
 
         int[][] deliveryTimeWindow = new int[][] {{22,28}, {0,14}, {0,13}, {0,13}, {0,14}, {0,13}};
         int[][] pickupTimeWindow = new int[][] {{3,5}, {15,24}, {18,24}, {19,24}, {15,24}, {22,24}};
 
-        Examples.createOutputFolder();
+        if (debug) {
+            System.out.println("Solving for Cluster: " + cluster + "\n");
+            System.out.print("Cluster Nodes: ");
+            for (String node: locationCodes) {
+                System.out.print(node+", ");
+            }
+            System.out.println("\n\nDemands:");
+            for (int[] demand: demands) {
+                for (int value: demand) {
+                    System.out.print(value + " ");
+                }
+                System.out.println();
+            }
+            System.out.println("");
+            System.out.println("Pickup Window, Delivery Window");
+            for (int i=0; i<locationCodes.size(); i++) {
+                System.out.println(locationCodes.get(i)+ ": ["+pickupTimeWindow[i][0]+","
+                    +pickupTimeWindow[i][1]+"], ["+deliveryTimeWindow[i][0]+","+deliveryTimeWindow[i][1]+"]");
+            }
+            System.out.println();
+            Examples.createOutputFolder();
+        }
 
         Collection<Shipment> shipments = new ArrayList<>();
         for (int day=0; day<1; day++) {
-            for (int from = 0; from < locations.size(); from++) {
-                for (int to = 0; to < locations.size(); to++) {
+            for (int from = 0; from < locationCoordinates.size(); from++) {
+                for (int to = 0; to < locationCoordinates.size(); to++) {
                     if (from != to && demands[from][to] != 0) {
                         List<Integer> splitDemand = splitDemand(demands[from][to]);
                         for (int demand=0; demand < splitDemand.size(); demand++) {
-                            Shipment.Builder shipmentBuilder = Shipment.Builder.newInstance(day + "." + from + " to " + day + "." + to + " - "+(demand+1))
+                            Shipment.Builder shipmentBuilder = Shipment.Builder
+                                .newInstance("Day" + day + "." + locationCodes.get(from) + " - Day:" + day + "." + locationCodes.get(to) + ", ShipmentNo:"+(demand+1))
                                 .addSizeDimension(0, splitDemand.get(demand))
-                                .setPickupLocation(loc(Coordinate.newInstance(locations.get(from).get(1), locations.get(from).get(0))))
-                                .setDeliveryLocation(loc(Coordinate.newInstance(locations.get(to).get(1), locations.get(to).get(0))))
+                                .setPickupLocation(loc(locationCoordinates.get(from)))
+                                .setDeliveryLocation(loc(locationCoordinates.get(to)))
                                 /**
                                  * Time Window Constraints
                                  */
@@ -233,42 +305,14 @@ public class RivigoRegionalVRP {
          * setup problem
 		 */
         VehicleRoutingProblem.Builder vrpBuilder = VehicleRoutingProblem.Builder.newInstance();
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(0), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(0), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(0), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(0), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(0), vehicleDispatchTimeFromPC));
 
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(1), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(1), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(1), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(1), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(1), vehicleDispatchTimeFromPC));
-
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(2), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(2), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(2), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(2), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(2), vehicleDispatchTimeFromPC));
-
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(3), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(3), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(3), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(3), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(3), vehicleDispatchTimeFromPC));
-
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(4), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(4), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(4), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(4), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(4), vehicleDispatchTimeFromPC));
-
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locations.get(5), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locations.get(5), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locations.get(5), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locations.get(5), vehicleDispatchTimeFromPC));
-        vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locations.get(5), vehicleDispatchTimeFromPC));
-
+        for (String locationCode: locationCodes) {
+            vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
+            vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
+            vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
+            vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
+            vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
+        }
 
         vrpBuilder.addAllJobs(shipments);
         vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.FINITE);
@@ -313,10 +357,9 @@ public class RivigoRegionalVRP {
         Plotter solutionPlotter = new Plotter(problem, Solutions.bestOf(solutions));
         solutionPlotter.plotShipments(true);
         solutionPlotter.plot("output/simpleMixedEnRoutePickupAndDeliveryExample_solution.png", "en-route pd and depot bounded deliveries");
-
     }
 
-    private static void parseOutput () {
+    private static void parseOutput() {
         try {
             File inputFile = new File("/home/user/Documents/Rivigo/jsprit/output/mixed-shipments-services-problem-with-solution.xml");
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
@@ -403,5 +446,83 @@ public class RivigoRegionalVRP {
 //        writer.flush();
 //        writer.close();
 
+    }
+
+    private static Location loc(Coordinate coordinate) {
+        return Location.Builder.newInstance().setCoordinate(coordinate).build();
+    }
+
+    private static List<Coordinate> getNodeLocationsOfCluster(String pc) {
+
+        List<Coordinate> locations = new ArrayList<>();
+        for (String node: pcToBranchMap.get(pc)) {
+            locations.add(locationCodeToLatLngMap.get(node));
+        }
+        return locations;
+    }
+
+    private static int[][] getSalesDataOfCluster(String pc) {
+
+        int[][] demands = new int[pcToBranchMap.get(pc).size()][pcToBranchMap.get(pc).size()];
+        for (int i=1; i<demands.length; i++) {
+            demands[0][i] = (int) getTotalDeliveryAtNode(pcToBranchMap.get(pc).get(i));
+            demands[i][0] = (int) getTotalPickupAtNode(pcToBranchMap.get(pc).get(i));
+        }
+        return demands;
+    }
+
+    private static List<Integer> splitDemand(int demand) {
+
+        List<Integer> splitDemand = new ArrayList<>();
+        while (demand>_32_Feet_Vehicle_Capacity_In_KGs) {
+            splitDemand.add(_32_Feet_Vehicle_Capacity_In_KGs);
+            demand -= _32_Feet_Vehicle_Capacity_In_KGs;
+        }
+        splitDemand.add(demand);
+        return splitDemand;
+    }
+
+    private static double getTotalPickupAtNode(String sourceNode) {
+
+        double pickup=0;
+        for (String node: networkNodes) {
+            if(!sourceNode.equalsIgnoreCase(node)) {
+                Pair<String, String> odPair = new Pair<>(sourceNode, node);
+                pickup+=salesPlan.get(odPair);
+            }
+        }
+        return pickup>0?pickup:minWeightToBeHonoured_In_Kgs;
+    }
+
+    private static double getTotalDeliveryAtNode(String sourceNode) {
+
+        double delivery=0;
+        for (String node: networkNodes) {
+            if (!sourceNode.equalsIgnoreCase(node)){
+                Pair<String, String> odPair = new Pair<>(node, sourceNode);
+                delivery+=salesPlan.get(odPair);
+            }
+        }
+        return delivery>0?delivery:minWeightToBeHonoured_In_Kgs;
+    }
+
+    private static double getTotalShipmentFromNodeToCluster(String node, String pc) {
+
+        double shipment=0;
+        for (String branchOrPc: pcToBranchMap.get(pc)) {
+            Pair<String, String> odPair = new Pair<>(node, branchOrPc);
+            shipment+=salesPlan.get(odPair);
+        }
+        return shipment;
+    }
+
+    private static double getTotalShipmentFromClusterToNode(String pc, String node) {
+
+        double shipment=0;
+        for (String branchOrPc: pcToBranchMap.get(pc)) {
+            Pair<String, String> odPair = new Pair<>(branchOrPc, node);
+            shipment+=salesPlan.get(odPair);
+        }
+        return shipment;
     }
 }

@@ -109,7 +109,7 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
                     continue;
                 }
                 String[] data = line.split(cvsSplitBy);
-                Location location = loc(Coordinate.newInstance(Double.parseDouble(data[3]),Double.parseDouble(data[4])));
+                Location location = loc(Coordinate.newInstance(Double.parseDouble(data[4]),Double.parseDouble(data[3])));
                 Long id = Long.parseLong(data[0]);
                 locationToIdMap.put(location,id);
             }
