@@ -77,8 +77,8 @@ public class RivigoRegionalVRP {
     private static final double deliveryServiceTimeForTouchingNode = 1;
 
     //Input Data
-    private static String salesPlanCSVFile = "/home/user/Documents/Rivigo/jsprit/jsprit-examples/src/main/resources/sales_plan.csv";
-    private static String neo4JLocationCSVFile = "/home/user/Documents/Rivigo/jsprit/jsprit-examples/src/main/resources/neo4j_location.csv";
+    private static String salesPlanCSVFile = "jsprit-examples/src/main/resources/sales_plan.csv";
+    private static String neo4JLocationCSVFile = "jsprit-examples/src/main/resources/neo4j_location.csv";
     private static List<String> networkNodes = new ArrayList<>();
     private static Map<String,List<String>> pcToBranchMap= new HashMap<>();
     private static Map<Pair<String,String>, Double> salesPlan = new HashMap<>();
@@ -222,7 +222,7 @@ public class RivigoRegionalVRP {
                 .setType(vehicleTypeFactory)
                 .setStartLocation(loc(locationCodeToLatLngMap.get(locationCode)))
                 .setEarliestStart(vehicleDispatchTimeFromPC)
-                .setLatestArrival(oneDay+vehicleDispatchTimeFromPC+oneHour*5)
+//                .setLatestArrival(oneDay+vehicleDispatchTimeFromPC+oneHour*5)
                 .setReturnToDepot(true)
                 .build();
             vehicles.add(vehicle);
@@ -366,13 +366,13 @@ public class RivigoRegionalVRP {
 
     private static void parseOutput() {
         try(
-            BufferedWriter writer = new BufferedWriter(new FileWriter("/home/user/Documents/Rivigo/jsprit/output/RegionalOutput.csv"));
+            BufferedWriter writer = new BufferedWriter(new FileWriter("output/RegionalOutput.csv"));
             CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT
                 .withHeader("Source","Destination", "Arrival Time",
                     "BLRT1", "AMBT1", "CJBT1", "IXWT1", "AMDT1", "HYDT1", "IDRT1", "MAAT1", "NOIT1",
                     "DELT1", "NAGT1", "BOMT1", "PNQT1", "CCUT1", "JAIT1", "GAUT1", "LKOT1"))
         ) {
-            File inputFile = new File("/home/user/Documents/Rivigo/jsprit/output/mixed-shipments-services-problem-with-solution.xml");
+            File inputFile = new File("output/mixed-shipments-services-problem-with-solution.xml");
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
             Document doc = dBuilder.parse(inputFile);

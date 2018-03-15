@@ -96,7 +96,7 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
     }
 
     private void createLocationToIdMapping() {
-        String csvFile = "/home/user/Documents/Rivigo/jsprit/jsprit-examples/src/main/resources/neo4j_location.csv";
+        String csvFile = "jsprit-examples/src/main/resources/neo4j_location.csv";
         String line = "";
         String cvsSplitBy = ",";
 
@@ -120,7 +120,7 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
     }
 
     private void fetchSectionalTatData() {
-        String csvFile = "/home/user/Documents/Rivigo/jsprit/jsprit-examples/src/main/resources/sectional_tat.csv";
+        String csvFile = "jsprit-examples/src/main/resources/sectional_tat.csv";
         String line = "";
         String cvsSplitBy = ",";
 
