@@ -21,6 +21,8 @@ import com.graphhopper.jsprit.core.util.GoogleCosts;
 import com.graphhopper.jsprit.core.util.Solutions;
 import com.graphhopper.jsprit.io.problem.VrpXMLWriter;
 import com.graphhopper.jsprit.util.Examples;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.math3.util.Pair;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -30,8 +32,10 @@ import org.w3c.dom.NodeList;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -83,10 +87,12 @@ public class RivigoRegionalVRP {
     //To ensure branch connectivity to pc
     private static double minWeightToBeHonoured_In_Kgs = 100;
 
+    private static String clusterCode = "AMBT1";
+
     public static void main(String[] args) {
         init();
         solver(true);
-//        parseOutput();
+        parseOutput();
     }
 
     private static void init() {
@@ -229,16 +235,15 @@ public class RivigoRegionalVRP {
         /**
          * Input locations, demands and cutoffs
          */
-        String cluster = "AMBT1";
-        int[][] demands = getSalesDataOfCluster(cluster);
-        List<String> locationCodes = pcToBranchMap.get(cluster);
-        List<Coordinate> locationCoordinates = getNodeLocationsOfCluster(cluster);
+        int[][] demands = getSalesDataOfCluster(clusterCode);
+        List<String> locationCodes = pcToBranchMap.get(clusterCode);
+        List<Coordinate> locationCoordinates = getNodeLocationsOfCluster(clusterCode);
 
         int[][] deliveryTimeWindow = new int[][] {{22,28}, {0,14}, {0,13}, {0,13}, {0,14}, {0,13}};
         int[][] pickupTimeWindow = new int[][] {{3,5}, {15,24}, {18,24}, {19,24}, {15,24}, {22,24}};
 
         if (debug) {
-            System.out.println("Solving for Cluster: " + cluster + "\n");
+            System.out.println("Solving for Cluster: " + clusterCode + "\n");
             System.out.print("Cluster Nodes: ");
             for (String node: locationCodes) {
                 System.out.print(node+", ");
@@ -268,7 +273,7 @@ public class RivigoRegionalVRP {
                         List<Integer> splitDemand = splitDemand(demands[from][to]);
                         for (int demand=0; demand < splitDemand.size(); demand++) {
                             Shipment.Builder shipmentBuilder = Shipment.Builder
-                                .newInstance("Day" + day + "." + locationCodes.get(from) + " - Day:" + day + "." + locationCodes.get(to) + ", ShipmentNo:"+(demand+1))
+                                .newInstance("Day" + day + ":" + locationCodes.get(from) + " - Day" + day + ":" + locationCodes.get(to) + ", ShipmentNo:"+(demand+1))
                                 .addSizeDimension(0, splitDemand.get(demand))
                                 .setPickupLocation(loc(locationCoordinates.get(from)))
                                 .setDeliveryLocation(loc(locationCoordinates.get(to)))
@@ -360,7 +365,13 @@ public class RivigoRegionalVRP {
     }
 
     private static void parseOutput() {
-        try {
+        try(
+            BufferedWriter writer = new BufferedWriter(new FileWriter("/home/user/Documents/Rivigo/jsprit/output/RegionalOutput.csv"));
+            CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT
+                .withHeader("Source","Destination", "Arrival Time",
+                    "BLRT1", "AMBT1", "CJBT1", "IXWT1", "AMDT1", "HYDT1", "IDRT1", "MAAT1", "NOIT1",
+                    "DELT1", "NAGT1", "BOMT1", "PNQT1", "CCUT1", "JAIT1", "GAUT1", "LKOT1"))
+        ) {
             File inputFile = new File("/home/user/Documents/Rivigo/jsprit/output/mixed-shipments-services-problem-with-solution.xml");
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
@@ -380,72 +391,45 @@ public class RivigoRegionalVRP {
                 Node routeNode = routeList.item(route);
                 if (routeNode.getNodeType() == Node.ELEMENT_NODE) {
                     Element routeNodeElement = (Element) routeNode;
-                    System.out.println("Vehicle Id: "
-                        + routeNodeElement
-                        .getElementsByTagName("vehicleId")
-                        .item(0)
-                        .getTextContent());
-                    System.out.println("Start Time: "
-                        + routeNodeElement
-                        .getElementsByTagName("start")
-                        .item(0)
-                        .getTextContent()+"\n");
+                    System.out.println("Vehicle Id: "+ routeNodeElement.getElementsByTagName("vehicleId").item(0).getTextContent());
+                    System.out.println("Start Time: "+ routeNodeElement.getElementsByTagName("start").item(0).getTextContent()+"\n");
                     NodeList actList = routeNodeElement.getElementsByTagName("act");
                     for (int act = 0; act < actList.getLength(); act++) {
                         Node actNode = actList.item(act);
                         if (actNode.getNodeType() == Node.ELEMENT_NODE) {
                             Element actNodeElement = (Element) actNode;
-                            System.out.println("Shipment Type: "
-                                +actNodeElement.getAttribute("type"));
-                            System.out.println("Shipment Id: "
-                                + actNodeElement
-                                .getElementsByTagName("shipmentId")
-                                .item(0)
-                                .getTextContent());
-                            System.out.println("Arrival Time: "
-                                + actNodeElement
-                                .getElementsByTagName("arrTime")
-                                .item(0)
-                                .getTextContent());
-                            System.out.println("Departure Time: "
-                                + actNodeElement
-                                .getElementsByTagName("endTime")
-                                .item(0)
-                                .getTextContent());
+                            System.out.println("Shipment Type: "+actNodeElement.getAttribute("type"));
+                            System.out.println("Shipment Id: "+ actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent());
+                            System.out.println("Arrival Time: "+ actNodeElement.getElementsByTagName("arrTime").item(0).getTextContent());
+                            System.out.println("Departure Time: "+ actNodeElement.getElementsByTagName("endTime").item(0).getTextContent());
+                            if (actNodeElement.getAttribute("type").equalsIgnoreCase("deliverShipment")
+                                && parseShipmentIdString(actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent(),1)
+                                    .equalsIgnoreCase(clusterCode)) {
+                                String src = parseShipmentIdString(actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent(), 0);
+                                System.out.println("Src node: "+src);
+                                List<String> data = new ArrayList<>();
+                                data.add(src);
+                                data.add(clusterCode);
+                                data.add(actNodeElement.getElementsByTagName("arrTime").item(0).getTextContent());
+                                for(String pc: pcToBranchMap.keySet()){
+                                    System.out.print(getTotalShipmentFromNodeToCluster(src.trim(),pc)+", ");
+                                    data.add(getTotalShipmentFromNodeToCluster(src.trim(),pc)+"");
+                                }
+                                csvPrinter.printRecord(data);
+                            }
                         }
                         System.out.println();
                     }
-                    System.out.println("End Time: "
-                        + routeNodeElement
-                        .getElementsByTagName("end")
-                        .item(0)
-                        .getTextContent());
+                    System.out.println("End Time: "+ routeNodeElement.getElementsByTagName("end").item(0).getTextContent());
                     System.out.println("--------------------------------------------------------------------");
                 }
                 System.out.println();
             }
+            csvPrinter.flush();
+            System.out.println("RegionalOutput file created...");
         } catch (Exception e) {
             e.printStackTrace();
         }
-
-//        String csvFile = "/Users/mkyong/csv/abc.csv";
-//        FileWriter writer = new FileWriter(csvFile);
-//
-//        CSVUtils.writeLine(writer, Arrays.asList("a", "b", "c", "d"));
-//
-//        //custom separator + quote
-//        CSVUtils.writeLine(writer, Arrays.asList("aaa", "bb,b", "cc,c"), ',', '"');
-//
-//        //custom separator + quote
-//        CSVUtils.writeLine(writer, Arrays.asList("aaa", "bbb", "cc,c"), '|', '\'');
-//
-//        //double-quotes
-//        CSVUtils.writeLine(writer, Arrays.asList("aaa", "bbb", "cc\"c"));
-//
-//
-//        writer.flush();
-//        writer.close();
-
     }
 
     private static Location loc(Coordinate coordinate) {
@@ -524,5 +508,9 @@ public class RivigoRegionalVRP {
             shipment+=salesPlan.get(odPair);
         }
         return shipment;
+    }
+
+    private static String parseShipmentIdString(String id, int index) {
+        return id.split(",")[0].split("-")[index].split(":")[1];
     }
 }
