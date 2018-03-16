@@ -32,7 +32,7 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
         this.detour = detour;
     }
 
-   public GoogleCosts() {
+    public GoogleCosts() {
        super();
        createLocationToIdMapping();
        fetchSectionalTatData();
@@ -71,7 +71,7 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
     public double getTransportTime(Location fromLocation, Location toLocation, double time, Driver driver, Vehicle vehicle) {
         if (fromLocation.getCoordinate() == null || toLocation.getCoordinate() == null)
             throw new NullPointerException("either from or to location is null");
-//        return GoogleDistanceCalculator.calculateDistance(from, to, distanceUnit) * detour;
+    //        return GoogleDistanceCalculator.calculateDistance(from, to, distanceUnit) * detour;
         return ODPairTAT.get(ODPair.newInstance(locationToIdMap.get(fromLocation),locationToIdMap.get(toLocation)))/3600000.0;
     }
 
@@ -79,7 +79,7 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
     public double getDistance(Location fromLocation, Location toLocation, double departureTime, Vehicle vehicle) {
         if (fromLocation.getCoordinate() == null || toLocation.getCoordinate() == null)
             throw new NullPointerException("either from or to location is null");
-//        return GoogleDistanceCalculator.calculateDistance(from, to, distanceUnit) * detour;
+    //        return GoogleDistanceCalculator.calculateDistance(from, to, distanceUnit) * detour;
         return ODPairDistance.get(ODPair.newInstance(locationToIdMap.get(fromLocation),locationToIdMap.get(toLocation)));
     }
 
@@ -91,7 +91,7 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
             to = toLocation.getCoordinate();
         }
         if (from == null || to == null) throw new NullPointerException("either from or to location is null");
-//        return GoogleDistanceCalculator.calculateDistance(from, to, distanceUnit) * detour;
+    //        return GoogleDistanceCalculator.calculateDistance(from, to, distanceUnit) * detour;
         return ODPairDistance.get(ODPair.newInstance(locationToIdMap.get(fromLocation),locationToIdMap.get(toLocation)));
     }
 
