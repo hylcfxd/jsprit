@@ -11,10 +11,10 @@ import com.google.maps.model.LatLng;
 public class GoogleDistanceCalculator {
 
     public static double calculateDistance(Coordinate coord1, Coordinate coord2, DistanceUnit distanceUnit) {
-        double lat1 = coord1.getX();
-        double lat2 = coord2.getX();
-        double lon1 = coord1.getY();
-        double lon2 = coord2.getY();
+        double lat1 = coord1.getY();
+        double lat2 = coord2.getY();
+        double lon1 = coord1.getX();
+        double lon2 = coord2.getX();
 
 //        String API_KEY = "AIzaSyAR-giu_izTcgeHcEdcgCrFmP5XaG-qHkA";
         String API_KEY = "AIzaSyAxSIcrUds16uJkTXcYJFdEaiBNC0xetoU";

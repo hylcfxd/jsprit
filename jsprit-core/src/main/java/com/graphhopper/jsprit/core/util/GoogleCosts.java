@@ -9,7 +9,9 @@ import com.graphhopper.jsprit.core.problem.vehicle.Vehicle;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -152,15 +154,16 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
 //    public static void main(String args[]) {
 //        GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer);
 //        List<Coordinate> locations = new ArrayList<>();
-//        locations.add(Coordinate.newInstance(30.236,76.861));
-//        locations.add(Coordinate.newInstance(30.897212,75.8741285));
-//        locations.add(Coordinate.newInstance(30.684431,76.823187));
-//        locations.add(Coordinate.newInstance(31.625029,74.918999));
-//        locations.add(Coordinate.newInstance(31.349958,75.571194));
-//        locations.add(Coordinate.newInstance(29.664056,76.9900082));
-//        for (int i=0; i<6; i++) {
+//        locations.add(Coordinate.newInstance(72.396839, 22.868));
+//        locations.add(Coordinate.newInstance(73.123739, 22.413002));
+//        locations.add(Coordinate.newInstance(73.731485, 19.964085));
+//        locations.add(Coordinate.newInstance(70.053291, 22.41216));
+//        locations.add(Coordinate.newInstance(70.77785, 22.2965));
+//        locations.add(Coordinate.newInstance(72.963507, 21.178743));
+//        locations.add(Coordinate.newInstance(72.9186749, 20.3604766));
+//        for (int i=0; i<locations.size(); i++) {
 //            Coordinate loc1 = locations.get(i);
-//            for (int j=0; j<6; j++) {
+//            for (int j=0; j<locations.size(); j++) {
 //                Coordinate loc2 = locations.get(j);
 //                double distance = GoogleDistanceCalculator.calculateDistance(loc1, loc2, DistanceUnit.Kilometer);
 //                System.out.println(

@@ -98,7 +98,7 @@ public class RivigoRegionalVRP {
         try(
             BufferedWriter writer = new BufferedWriter(new FileWriter("output/RegionalOutput.csv"));
             CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT
-                .withHeader("Cluster", "Iteration", "Dispatch Time From PC", "Cost", "Vehicles Required",
+                .withHeader("Cluster", "Iteration", "Dispatch Time From PC", "Network", "Cost", "Vehicles Required",
                     "Impossible Shipments", "Impossible Shipment Details", "Shipments From Branch", "Arrival Time At PC",
                     "BLRT1", "AMBT1", "CJBT1", "IXWT1", "AMDT1", "HYDT1", "IDRT1", "MAAT1", "NOIT1",
                     "DELT1", "NAGT1", "BOMT1", "PNQT1", "CCUT1", "JAIT1", "GAUT1", "LKOT1"))
@@ -268,7 +268,7 @@ public class RivigoRegionalVRP {
 
         int lowerTimeBoundForBranch = 0;
         int upperTimeBoundForBranch = 24;
-        int lowerTimeBoundForPC = 3;
+        int lowerTimeBoundForPC = 0;
         int upperTimeBoundForPC = 36;
         int[][] deliveryTimeWindow = new int[locationCodes.size()][2];
         int[][] pickupTimeWindow = new int[locationCodes.size()][2];
@@ -430,20 +430,22 @@ public class RivigoRegionalVRP {
             doc.getDocumentElement().normalize();
             NodeList solutions = doc.getElementsByTagName("solution");
             Node firstSolutionNode = solutions.item(0);
-            System.out.println("----------------------------");
+            System.out.println("----------------------------------------------------------------------------------------");
             Element firstSolutionElement = (Element) firstSolutionNode;
 //            System.out.println("Root element : " + doc.getDocumentElement().getNodeName());
-            System.out.println("Solution details:\n");
+            System.out.println("Solution details (Iteration-"+iteration+"):\n");
             System.out.println("Cost: Rs. " + firstSolutionElement.getElementsByTagName("cost").item(0).getTextContent());
             NodeList routeList = firstSolutionElement.getElementsByTagName("route");
             System.out.println("Vehicles: " + routeList.getLength());
-            System.out.println("--------------------------------------------------------------------");
+            System.out.println("-------------------------------------------------");
+            List<List<Pair<String,String>>> allRoutes = new ArrayList<>();
             for (int route = 0; route < routeList.getLength(); route++) {
                 Node routeNode = routeList.item(route);
                 if (routeNode.getNodeType() == Node.ELEMENT_NODE) {
                     Element routeNodeElement = (Element) routeNode;
                     System.out.println("Vehicle Id: " + routeNodeElement.getElementsByTagName("vehicleId").item(0).getTextContent());
                     System.out.println("Start Time: " + routeNodeElement.getElementsByTagName("start").item(0).getTextContent() + "\n");
+                    List<Pair<String,String>> routeOfVehicle = new ArrayList<>();
                     NodeList actList = routeNodeElement.getElementsByTagName("act");
                     for (int act = 0; act < actList.getLength(); act++) {
                         Node actNode = actList.item(act);
@@ -451,6 +453,10 @@ public class RivigoRegionalVRP {
                             Element actNodeElement = (Element) actNode;
                             System.out.println("Shipment Type: " + actNodeElement.getAttribute("type"));
                             System.out.println("Shipment Id: " + actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent());
+                            Pair<String,String> shipmentTypeAndId = new Pair<String, String>(
+                                actNodeElement.getAttribute("type"),
+                                actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent());
+                            routeOfVehicle.add(shipmentTypeAndId);
                             System.out.println("Arrival Time: " + actNodeElement.getElementsByTagName("arrTime").item(0).getTextContent());
                             System.out.println("Departure Time: " + actNodeElement.getElementsByTagName("endTime").item(0).getTextContent());
                             if (actNodeElement.getAttribute("type").equalsIgnoreCase("deliverShipment")
@@ -462,6 +468,7 @@ public class RivigoRegionalVRP {
                                 outputData.add(clusterCode);
                                 outputData.add(iteration + "");
                                 outputData.add(vehicleDispatchTimeFromPC + "");
+                                outputData.add("-");
                                 outputData.add(firstSolutionElement.getElementsByTagName("cost").item(0).getTextContent());
                                 outputData.add(routeList.getLength() + "");
                                 NodeList unassignedJobsList = firstSolutionElement.getElementsByTagName("job");
@@ -474,7 +481,7 @@ public class RivigoRegionalVRP {
                                             Element jobNodeElement = (Element) jobNode;
                                             impossibleShipments += "["
                                                 + parseShipmentIdString(jobNodeElement.getAttribute("id"), 0)
-                                                + "-"
+                                                + "- "
                                                 + parseShipmentIdString(jobNodeElement.getAttribute("id"), 1)
                                                 + "], ";
                                         }
@@ -484,6 +491,7 @@ public class RivigoRegionalVRP {
                                     outputData.add("-");
                                 }
                                 outputData.add(src);
+
                                 outputData.add(actNodeElement.getElementsByTagName("arrTime").item(0).getTextContent());
                                 for (String pc : pcToBranchMap.keySet()) {
                                     System.out.print(getTotalShipmentFromNodeToCluster(src.trim(), pc) + ", ");
@@ -494,11 +502,18 @@ public class RivigoRegionalVRP {
                         }
                         System.out.println();
                     }
+                    allRoutes.add(routeOfVehicle);
                     System.out.println("End Time: " + routeNodeElement.getElementsByTagName("end").item(0).getTextContent());
                     System.out.println("--------------------------------------------------------------------");
                 }
                 System.out.println();
             }
+            List<String> networkRow = new ArrayList<>();
+            networkRow.add("");
+            networkRow.add("");
+            networkRow.add("");
+            networkRow.add(createNetwork(allRoutes));
+            csvPrinter.printRecord(networkRow);
             csvPrinter.flush();
         } catch (Exception e) {
             e.printStackTrace();
@@ -585,5 +600,29 @@ public class RivigoRegionalVRP {
 
     private static String parseShipmentIdString(String id, int index) {
         return id.split(",")[0].split("-")[index].split(":")[1];
+    }
+
+    private static String createNetwork( List<List<Pair<String,String>>> allRoutes) {
+        String network = "[";
+        for (List<Pair<String,String>> route: allRoutes){
+            List<String> connectedRoute = new ArrayList<>();
+            for (Pair<String,String> shipmentTypeAndId : route) {
+                if (shipmentTypeAndId.getFirst().trim().equalsIgnoreCase("pickupShipment"))
+                    connectedRoute.add(parseShipmentIdString(shipmentTypeAndId.getSecond(), 0).trim());
+                else
+                    connectedRoute.add(parseShipmentIdString(shipmentTypeAndId.getSecond(),1).trim());
+            }
+            String parsedRoute = "[";
+            parsedRoute += connectedRoute.get(0);
+            for (int i=1; i<connectedRoute.size(); i++) {
+                if (!connectedRoute.get(i).equalsIgnoreCase(connectedRoute.get(i-1))) {
+                    parsedRoute += "-"+connectedRoute.get(i);
+                }
+            }
+            parsedRoute += "]";
+            network += parsedRoute+", ";
+        }
+        network += "]";
+        return network;
     }
 }
