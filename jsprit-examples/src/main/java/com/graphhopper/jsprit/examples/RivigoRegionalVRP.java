@@ -104,7 +104,6 @@ public class RivigoRegionalVRP {
                     "DELT1", "NAGT1", "BOMT1", "PNQT1", "CCUT1", "JAIT1", "GAUT1", "LKOT1"))
         ) {
             solver(true, csvPrinter);
-//            parseOutput("0", 0, 0, csvPrinter);
             System.out.println("RegionalOutput file created...");
         } catch (Exception e) {
             e.printStackTrace();
@@ -262,9 +261,6 @@ public class RivigoRegionalVRP {
         List<String> locationCodes = pcToBranchMap.get(clusterHeadCode);
         int indexOfPc = locationCodes.indexOf(clusterHeadCode);
         List<Coordinate> locationCoordinates = getNodeLocationsOfCluster(clusterHeadCode);
-
-//        int[][] deliveryTimeWindow = new int[][] {{22,36}, {0,14}, {0,13}, {0,13}, {0,14}, {0,13}};
-//        int[][] pickupTimeWindow = new int[][] {{3,11}, {15,24}, {18,24}, {19,24}, {15,24}, {22,24}};
 
         int lowerTimeBoundForBranch = 0;
         int upperTimeBoundForBranch = 24;

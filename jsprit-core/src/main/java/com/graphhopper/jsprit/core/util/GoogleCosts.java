@@ -154,13 +154,24 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
 //    public static void main(String args[]) {
 //        GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer);
 //        List<Coordinate> locations = new ArrayList<>();
-//        locations.add(Coordinate.newInstance(72.396839, 22.868));
-//        locations.add(Coordinate.newInstance(73.123739, 22.413002));
-//        locations.add(Coordinate.newInstance(73.731485, 19.964085));
-//        locations.add(Coordinate.newInstance(70.053291, 22.41216));
-//        locations.add(Coordinate.newInstance(70.77785, 22.2965));
-//        locations.add(Coordinate.newInstance(72.963507, 21.178743));
-//        locations.add(Coordinate.newInstance(72.9186749, 20.3604766));
+//        String csvFile = "jsprit-examples/src/main/resources/neo4j_location.csv";
+//        String line = "";
+//        String cvsSplitBy = ",";
+//        int count = 0;
+//        try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
+//            while ((line = br.readLine()) != null) {
+//                // use comma as separator
+//                if (count==0){
+//                    count+=1;
+//                    continue;
+//                }
+//                String[] data = line.split(cvsSplitBy);
+//               locations.add((Coordinate.newInstance(Double.parseDouble(data[4]),Double.parseDouble(data[3]))));
+//            }
+//
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
 //        for (int i=0; i<locations.size(); i++) {
 //            Coordinate loc1 = locations.get(i);
 //            for (int j=0; j<locations.size(); j++) {
