@@ -9,9 +9,7 @@ import com.graphhopper.jsprit.core.problem.vehicle.Vehicle;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -122,7 +120,7 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
     }
 
     private void fetchSectionalTatData() {
-        String csvFile = "jsprit-examples/src/main/resources/sectional_tat.csv";
+        String csvFile = "jsprit-examples/src/main/resources/tats.csv";
         String line = "";
         String cvsSplitBy = ",";
 
@@ -150,6 +148,18 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
     private static Location loc(Coordinate coordinate) {
         return Location.Builder.newInstance().setCoordinate(coordinate).build();
     }
+
+//    public static void main(String args[]) {
+////        GoogleCosts googleCosts = new GoogleCosts();
+//        Map<ODPair, Integer> map = new HashMap<>();
+//        ODPair odPair = ODPair.newInstance(Long.parseLong("1"),Long.parseLong("2"));
+//        map.put(odPair,3);
+//        ODPair odPair1 = ODPair.newInstance(Long.parseLong("1"),Long.parseLong("3"));
+//        if (map.get(odPair1) == null) {
+//            map.put(odPair1,4);
+//        }
+//        System.out.println(map.get(odPair1));
+//    }
 
 //    public static void main(String args[]) {
 //        GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer);

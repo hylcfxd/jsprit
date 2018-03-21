@@ -38,6 +38,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -91,22 +92,25 @@ public class RivigoRegionalVRP {
     //To ensure branch connectivity to pc
     private static double minWeightToBeHonoured_In_Kgs = 100;
 
-    private static String clusterHeadCode = "AMBT1";
-
     public static void main(String[] args) {
         init();
-        try(
-            BufferedWriter writer = new BufferedWriter(new FileWriter("output/RegionalOutput.csv"));
-            CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT
-                .withHeader("Cluster", "Iteration", "Dispatch Time From PC", "Network", "Cost", "Vehicles Required",
-                    "Impossible Shipments", "Impossible Shipment Details", "Shipments From Branch", "Arrival Time At PC",
-                    "BLRT1", "AMBT1", "CJBT1", "IXWT1", "AMDT1", "HYDT1", "IDRT1", "MAAT1", "NOIT1",
-                    "DELT1", "NAGT1", "BOMT1", "PNQT1", "CCUT1", "JAIT1", "GAUT1", "LKOT1"))
-        ) {
-            solver(true, csvPrinter);
-            System.out.println("RegionalOutput file created...");
-        } catch (Exception e) {
-            e.printStackTrace();
+        List<String> clusters = Arrays.asList("AMBT1","AMDT1","LKOT1","HYDT1","IDRT1","JAIT1","MAAT1","NAGT1","PNQT1");
+        clusters = Arrays.asList("PNQT1");
+        for (String cluster: clusters) {
+            String clusterHeadCode = cluster;
+            try (
+                BufferedWriter writer = new BufferedWriter(new FileWriter("output/RegionalOutput-" + clusterHeadCode + ".csv"));
+                CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT
+                    .withHeader("Cluster", "Iteration", "Dispatch Time From PC", "Network", "Cost", "Vehicles Required",
+                        "Impossible Shipments", "Impossible Shipment Details", "Shipments From Branch", "Arrival Time At PC",
+                        "BLRT1", "AMBT1", "CJBT1", "IXWT1", "AMDT1", "HYDT1", "IDRT1", "MAAT1", "NOIT1",
+                        "DELT1", "NAGT1", "BOMT1", "PNQT1", "CCUT1", "JAIT1", "GAUT1", "LKOT1"))
+            ) {
+                solver(true, csvPrinter, clusterHeadCode);
+                System.out.println("RegionalOutput-" + clusterHeadCode + " file created...");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -252,7 +256,7 @@ public class RivigoRegionalVRP {
         return vehicles;
     }
 
-    private static void solver(Boolean debug, CSVPrinter csvPrinter) {
+    private static void solver(Boolean debug, CSVPrinter csvPrinter, String clusterHeadCode) {
 
         /**
          * Input locations, demands and cutoffs
@@ -286,8 +290,7 @@ public class RivigoRegionalVRP {
 
         int iteration=0;
         for (int dispatchTime=lowerTimeBoundForPC; dispatchTime<=pickupTimeWindow[locationCodes.indexOf(clusterHeadCode)][1]; dispatchTime++) {
-            pickupTimeWindow[0][0] = dispatchTime;
-
+            pickupTimeWindow[locationCodes.indexOf(clusterHeadCode)][0] = dispatchTime;
             if (debug) {
                 System.out.println("Solving for Cluster: " + clusterHeadCode + "\n");
                 System.out.print("Cluster Nodes: ");
@@ -411,12 +414,12 @@ public class RivigoRegionalVRP {
             Plotter solutionPlotter = new Plotter(problem, Solutions.bestOf(solutions));
             solutionPlotter.plotShipments(true);
             solutionPlotter.plot("output/simpleMixedEnRoutePickupAndDeliveryExample_solution.png", "en-route pd and depot bounded deliveries");
-            parseOutput(clusterHeadCode, iteration, dispatchTime, csvPrinter);
+            parseOutput(iteration, dispatchTime, clusterHeadCode, csvPrinter);
             iteration++;
         }
     }
 
-    private static void parseOutput(String clusterCode, int iteration, double vehicleDispatchTimeFromPC, CSVPrinter csvPrinter) {
+    private static void parseOutput(int iteration, double vehicleDispatchTimeFromPC, String clusterHeadCode, CSVPrinter csvPrinter) {
 
         try {
             File inputFile = new File("output/mixed-shipments-services-problem-with-solution.xml");
@@ -457,11 +460,11 @@ public class RivigoRegionalVRP {
                             System.out.println("Departure Time: " + actNodeElement.getElementsByTagName("endTime").item(0).getTextContent());
                             if (actNodeElement.getAttribute("type").equalsIgnoreCase("deliverShipment")
                                 && parseShipmentIdString(actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent(), 1)
-                                .equalsIgnoreCase(clusterCode)) {
+                                .equalsIgnoreCase(clusterHeadCode)) {
                                 String src = parseShipmentIdString(actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent(), 0);
                                 System.out.println("Src node: " + src);
                                 List<String> outputData = new ArrayList<>();
-                                outputData.add(clusterCode);
+                                outputData.add(clusterHeadCode);
                                 outputData.add(iteration + "");
                                 outputData.add(vehicleDispatchTimeFromPC + "");
                                 outputData.add("-");
@@ -532,9 +535,11 @@ public class RivigoRegionalVRP {
     private static int[][] getSalesDataOfCluster(String pc) {
 
         int[][] demands = new int[pcToBranchMap.get(pc).size()][pcToBranchMap.get(pc).size()];
-        for (int i=1; i<demands.length; i++) {
-            demands[0][i] = (int) getTotalDeliveryAtNode(pcToBranchMap.get(pc).get(i));
-            demands[i][0] = (int) getTotalPickupAtNode(pcToBranchMap.get(pc).get(i));
+        for (int i=0; i<demands.length; i++) {
+            if (pcToBranchMap.get(pc).indexOf(pc) != i) {
+                demands[pcToBranchMap.get(pc).indexOf(pc)][i] = (int) getTotalDeliveryAtNode(pcToBranchMap.get(pc).get(i));
+                demands[i][pcToBranchMap.get(pc).indexOf(pc)] = (int) getTotalPickupAtNode(pcToBranchMap.get(pc).get(i));
+            }
         }
         return demands;
     }
@@ -562,12 +567,12 @@ public class RivigoRegionalVRP {
         return pickup>0?pickup:minWeightToBeHonoured_In_Kgs;
     }
 
-    private static double getTotalDeliveryAtNode(String sourceNode) {
+    private static double getTotalDeliveryAtNode(String deliveryNode) {
 
         double delivery=0;
         for (String node: networkNodes) {
-            if (!sourceNode.equalsIgnoreCase(node)){
-                Pair<String, String> odPair = new Pair<>(node, sourceNode);
+            if (!deliveryNode.equalsIgnoreCase(node)){
+                Pair<String, String> odPair = new Pair<>(node, deliveryNode);
                 delivery+=salesPlan.get(odPair);
             }
         }
@@ -599,7 +604,7 @@ public class RivigoRegionalVRP {
     }
 
     private static String createNetwork( List<List<Pair<String,String>>> allRoutes) {
-        String network = "[";
+        StringBuilder network = new StringBuilder("[");
         for (List<Pair<String,String>> route: allRoutes){
             List<String> connectedRoute = new ArrayList<>();
             for (Pair<String,String> shipmentTypeAndId : route) {
@@ -608,17 +613,17 @@ public class RivigoRegionalVRP {
                 else
                     connectedRoute.add(parseShipmentIdString(shipmentTypeAndId.getSecond(),1).trim());
             }
-            String parsedRoute = "[";
-            parsedRoute += connectedRoute.get(0);
+            StringBuilder parsedRoute = new StringBuilder("[");
+            parsedRoute.append(connectedRoute.get(0));
             for (int i=1; i<connectedRoute.size(); i++) {
                 if (!connectedRoute.get(i).equalsIgnoreCase(connectedRoute.get(i-1))) {
-                    parsedRoute += "-"+connectedRoute.get(i);
+                    parsedRoute.append("-"+connectedRoute.get(i));
                 }
             }
-            parsedRoute += "]";
-            network += parsedRoute+", ";
+            parsedRoute.append("]");
+            network.append(parsedRoute+", ");
         }
-        network += "]";
-        return network;
+        network.append("]");
+        return network.toString();
     }
 }
