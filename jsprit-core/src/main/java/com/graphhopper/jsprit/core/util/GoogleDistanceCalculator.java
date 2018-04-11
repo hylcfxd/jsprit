@@ -4,20 +4,22 @@ import com.google.maps.DistanceMatrixApi;
 import com.google.maps.GeoApiContext;
 import com.google.maps.model.DistanceMatrix;
 import com.google.maps.model.LatLng;
+import com.graphhopper.jsprit.core.problem.Location;
 
 /**
  * Created by Abhishek Tripathi on 03.05.18.
  */
 public class GoogleDistanceCalculator {
 
-    public static double calculateDistance(Coordinate coord1, Coordinate coord2, DistanceUnit distanceUnit) {
-        double lat1 = coord1.getY();
-        double lat2 = coord2.getY();
-        double lon1 = coord1.getX();
-        double lon2 = coord2.getX();
+    public static double calculateDistance(Location loc1, Location loc2, DistanceUnit distanceUnit) {
+        double lat1 = loc1.getCoordinate().getY();
+        double lat2 = loc2.getCoordinate().getY();
+        double lon1 = loc1.getCoordinate().getX();
+        double lon2 = loc2.getCoordinate().getX();
 
-//        String API_KEY = "AIzaSyAR-giu_izTcgeHcEdcgCrFmP5XaG-qHkA";
-        String API_KEY = "AIzaSyAxSIcrUds16uJkTXcYJFdEaiBNC0xetoU";
+        String API_KEY = "AIzaSyAR-giu_izTcgeHcEdcgCrFmP5XaG-qHkA"; // Abhishek Tripathi's
+        API_KEY = "AIzaSyAxSIcrUds16uJkTXcYJFdEaiBNC0xetoU"; // Abhishek Tripathi's
+        API_KEY = "AIzaSyDO6vXXGy97o6g573XEjN1SXgaFwsRz-Qk"; // Rivigo's
         GeoApiContext geoApiContext = new GeoApiContext.Builder().apiKey(API_KEY).build();
 
         LatLng origin = new LatLng(lat1,lon1);

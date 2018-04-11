@@ -9,7 +9,9 @@ import com.graphhopper.jsprit.core.problem.vehicle.Vehicle;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,15 +36,14 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
 
     public GoogleCosts() {
        super();
-       createLocationToIdMapping();
-       fetchSectionalTatData();
+       init();
     }
 
-    public GoogleCosts(DistanceUnit distanceUnit) {
+    public GoogleCosts(DistanceUnit distanceUnit, Double speed) {
         super();
-        createLocationToIdMapping();
-        fetchSectionalTatData();
         this.distanceUnit = distanceUnit;
+        this.speed = speed;
+        init();
     }
 
     public Map<Location, Long> getLocationToIdMap() {
@@ -95,53 +96,76 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
         return ODPairDistance.get(ODPair.newInstance(locationToIdMap.get(fromLocation),locationToIdMap.get(toLocation)));
     }
 
-    private void createLocationToIdMapping() {
+    private void init() {
+
+        /**
+         * Create in-memory maps
+         */
         String csvFile = "jsprit-examples/src/main/resources/neo4j_location.csv";
         String line = "";
         String cvsSplitBy = ",";
 
+        List<Location> locations = new ArrayList<>();
         int count = 0;
         try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
             while ((line = br.readLine()) != null) {
                 // use comma as separator
-                if (count==0){
-                    count+=1;
+                if (count == 0) {
+                    count += 1;
                     continue;
                 }
                 String[] data = line.split(cvsSplitBy);
-                Location location = loc(Coordinate.newInstance(Double.parseDouble(data[4]),Double.parseDouble(data[3])));
+                Location location = loc(Coordinate.newInstance(Double.parseDouble(data[4]), Double.parseDouble(data[3])));
+                locations.add(location);
                 Long id = Long.parseLong(data[0]);
-                locationToIdMap.put(location,id);
+                locationToIdMap.put(location, id);
             }
 
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
 
-    private void fetchSectionalTatData() {
-        String csvFile = "jsprit-examples/src/main/resources/tats.csv";
-        String line = "";
-        String cvsSplitBy = ",";
-
-        int count = 0;
+        csvFile = "jsprit-examples/src/main/resources/tats.csv";
+        count = 0;
         try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
             while ((line = br.readLine()) != null) {
                 // use comma as separator
-                if (count==0){
-                    count+=1;
+                if (count == 0) {
+                    count += 1;
                     continue;
                 }
                 String[] data = line.split(cvsSplitBy);
-                ODPair odPair = ODPair.newInstance(Long.parseLong(data[0]),Long.parseLong(data[1]));
-                Double distance = Double.parseDouble(data[2]);
-                Long tat = Long.parseLong(data[3]);
-                ODPairDistance.put(odPair,distance);
-                ODPairTAT.put(odPair,tat);
+                ODPair odPair = ODPair.newInstance(Long.parseLong(data[0]), Long.parseLong(data[1]));
+                ODPairDistance.put(odPair, Double.parseDouble(data[2]));
+                if (data.length == 4)
+                    ODPairTAT.put(odPair, Long.parseLong(data[3]));
+                else
+                    ODPairTAT.put(odPair, (long)((Double.parseDouble(data[2]) / speed) * 3600000));
             }
 
         } catch (IOException e) {
             e.printStackTrace();
+        }
+
+        /**
+         * Get google distance between all OD Pairs if it doesn't exist in data-store
+         */
+        boolean dataMissing = false;
+        for (Location loc1: locations) {
+            for (Location loc2: locations) {
+                ODPair odPair = ODPair.newInstance(locationToIdMap.get(loc1),locationToIdMap.get(loc2));
+                if (ODPairDistance.get(odPair) == null) {
+                    dataMissing = true;
+                    System.out.println("Tats data is missing in data-store");
+                    System.exit(1);
+                    double distance = GoogleDistanceCalculator.calculateDistance(loc1, loc2, DistanceUnit.Kilometer);
+                    System.out.println(locationToIdMap.get(loc1).toString()+ " " +locationToIdMap.get(loc2).toString()+ " " +distance);
+                }
+            }
+        }
+        if(dataMissing) {
+            System.out.println("Above data is missing in data-store");
+            System.exit(2);
         }
     }
 
@@ -149,52 +173,7 @@ public class GoogleCosts extends AbstractForwardVehicleRoutingTransportCosts {
         return Location.Builder.newInstance().setCoordinate(coordinate).build();
     }
 
-//    public static void main(String args[]) {
-////        GoogleCosts googleCosts = new GoogleCosts();
-//        Map<ODPair, Integer> map = new HashMap<>();
-//        ODPair odPair = ODPair.newInstance(Long.parseLong("1"),Long.parseLong("2"));
-//        map.put(odPair,3);
-//        ODPair odPair1 = ODPair.newInstance(Long.parseLong("1"),Long.parseLong("3"));
-//        if (map.get(odPair1) == null) {
-//            map.put(odPair1,4);
-//        }
-//        System.out.println(map.get(odPair1));
-//    }
-
-//    public static void main(String args[]) {
-//        GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer);
-//        List<Coordinate> locations = new ArrayList<>();
-//        String csvFile = "jsprit-examples/src/main/resources/neo4j_location.csv";
-//        String line = "";
-//        String cvsSplitBy = ",";
-//        int count = 0;
-//        try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
-//            while ((line = br.readLine()) != null) {
-//                // use comma as separator
-//                if (count==0){
-//                    count+=1;
-//                    continue;
-//                }
-//                String[] data = line.split(cvsSplitBy);
-//               locations.add((Coordinate.newInstance(Double.parseDouble(data[4]),Double.parseDouble(data[3]))));
-//            }
-//
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//        for (int i=0; i<locations.size(); i++) {
-//            Coordinate loc1 = locations.get(i);
-//            for (int j=0; j<locations.size(); j++) {
-//                Coordinate loc2 = locations.get(j);
-//                double distance = GoogleDistanceCalculator.calculateDistance(loc1, loc2, DistanceUnit.Kilometer);
-//                System.out.println(
-//                    googleCosts.locationToIdMap.get(loc(loc1)).toString()
-//                    +" "+
-//                    googleCosts.locationToIdMap.get(loc(loc2)).toString()
-//                    +" "+
-//                    distance
-//                );
-//            }
-//        }
-//    }
+    public static void main(String[] args) {
+        GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer, 35.0);
+    }
 }

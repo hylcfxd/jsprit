@@ -1,4 +1,4 @@
-package com.graphhopper.jsprit.examples;
+package com.rivigo.network;
 
 import com.graphhopper.jsprit.analysis.toolbox.Plotter;
 import com.graphhopper.jsprit.core.algorithm.VehicleRoutingAlgorithm;
@@ -84,7 +84,7 @@ public class RivigoRegionalVRP {
 
     public static void main (String[] args) {
         init();
-        List<String> clusters = Arrays.asList("AMBT1","AMDT1","LKOT1","HYDT1","IDRT1","JAIT1","MAAT1","NAGT1","PNQT1");
+        List<String> clusters = Arrays.asList("AMBT1","AMDT1","BLRT1","BOMT1","CCUT1","DELT1","GAUT1","HYDT1","IDRT1","IXWT1","JAIT1","LKOT1","MAAT1","NAGT1","NOIT1","PNQT1","SXVB1");
         clusters = Arrays.asList("AMBT1");
         for (String cluster: clusters) {
             String clusterHeadCode = cluster;
@@ -93,11 +93,11 @@ public class RivigoRegionalVRP {
                 CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT
                     .withHeader("Cluster", "Iteration", "Network", "Cost", "Vehicles_Required", "Route", "Vehicle_Capacity_In_Tonnes",
                         "Dispatch_Time_From_PC", "Arrival_Time_At_PC", "Impossible_Shipments", "Impossible Shipment_Details"
-//                        "BLRT1", "AMBT1", "CJBT1", "IXWT1", "AMDT1", "HYDT1", "IDRT1", "MAAT1", "NOIT1",
-//                        "DELT1", "NAGT1", "BOMT1", "PNQT1", "CCUT1", "JAIT1", "GAUT1", "LKOT1"
+//                        "AMBT1","AMDT1","BLRT1","BOMT1","CCUT1","DELT1","GAUT1","HYDT1","IDRT1",
+//                        "IXWT1","JAIT1","LKOT1","MAAT1","NAGT1","NOIT1","PNQT1","SXVB1"
                     ))
             ) {
-                solver(true, csvPrinter, clusterHeadCode);
+                networkSolverAlgo(true, csvPrinter, clusterHeadCode);
                 System.out.println("RegionalOutput-" + clusterHeadCode + " file created...");
             } catch (Exception e) {
                 e.printStackTrace();
@@ -247,7 +247,7 @@ public class RivigoRegionalVRP {
         return vehicles;
     }
 
-    private static void solver(Boolean debug, CSVPrinter csvPrinter, String clusterHeadCode) {
+    private static void networkSolverAlgo(Boolean debug, CSVPrinter csvPrinter, String clusterHeadCode) {
 
         /**
          * Input locations, demands and cutoffs
@@ -273,7 +273,7 @@ public class RivigoRegionalVRP {
                 deliveryTimeWindow[locationCodes.indexOf(node)][1] = upperTimeBoundForPC;
 
             } else {
-                pickupTimeWindow[locationCodes.indexOf(node)][0] = locationCodeToTimeCutoffsMap.get(node).getFirst() + (int)oneHour;
+                pickupTimeWindow[locationCodes.indexOf(node)][0] = locationCodeToTimeCutoffsMap.get(node).getFirst() + (int) oneHour;
                 pickupTimeWindow[locationCodes.indexOf(node)][1] = upperTimeBoundForBranch;
                 deliveryTimeWindow[locationCodes.indexOf(node)][0] = lowerTimeBoundForBranch;
                 deliveryTimeWindow[locationCodes.indexOf(node)][1] = locationCodeToTimeCutoffsMap.get(node).getSecond();
@@ -287,6 +287,7 @@ public class RivigoRegionalVRP {
         for (int dispatchTime=lowerTimeBoundForPC; dispatchTime<=maxDeliveryCutoffInCluster; dispatchTime++) {
             pickupTimeWindow[locationCodes.indexOf(clusterHeadCode)][0] = dispatchTime;
             if (debug) {
+                System.out.println("Iteration: "+iteration+"\n");
                 System.out.println("Solving for Cluster: " + clusterHeadCode + "\n");
                 System.out.print("Cluster Nodes: ");
                 for (String node: locationCodes) {
@@ -328,7 +329,7 @@ public class RivigoRegionalVRP {
                                     // For touching nodes
                                     .setPickupTimeWindow(TimeWindow.newInstance(pickupTimeWindow[from][0] + (oneDay*day), pickupTimeWindow[from][1] + (oneDay*day)))
                                     .setPickupServiceTime(pickupServiceTimeForTouchingNode)
-                                    .setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[to][0] + (oneDay*day), deliveryTimeWindow[to][1] + (oneDay*day)))
+                                    .setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[to][0] + (oneDay * day), deliveryTimeWindow[to][1] + (oneDay * day)))
                                     .setDeliveryServiceTime(deliveryServiceTimeForTouchingNode);
 
                                 // Override pickup time for multiple shipments
@@ -370,8 +371,7 @@ public class RivigoRegionalVRP {
 
             vrpBuilder.addAllJobs(shipments);
             vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.FINITE);
-            GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer);
-            googleCosts.setSpeed(avgVehicleSpeedInKMPH);
+            GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer, avgVehicleSpeedInKMPH);
             vrpBuilder.setRoutingCost(googleCosts);
             VehicleRoutingProblem problem = vrpBuilder.build();
 
@@ -404,17 +404,17 @@ public class RivigoRegionalVRP {
              */
             Plotter problemPlotter = new Plotter(problem);
             problemPlotter.plotShipments(true);
-            problemPlotter.plot("output/simpleMixedEnRoutePickupAndDeliveryExample_problem.png", "en-route pd and depot bounded deliveries");
+            problemPlotter.plot("output/simpleMixedEnRoutePickupAndDeliveryExample_problem.png", "Network for "+clusterHeadCode);
 
             Plotter solutionPlotter = new Plotter(problem, Solutions.bestOf(solutions));
             solutionPlotter.plotShipments(true);
-            solutionPlotter.plot("output/simpleMixedEnRoutePickupAndDeliveryExample_solution.png", "en-route pd and depot bounded deliveries");
-            parseOutput(iteration, dispatchTime, clusterHeadCode, csvPrinter);
+            solutionPlotter.plot("output/simpleMixedEnRoutePickupAndDeliveryExample_solution.png", "Network for "+clusterHeadCode);
+            parser(iteration, dispatchTime, clusterHeadCode, csvPrinter);
             iteration++;
         }
     }
 
-    private static void parseOutput(int iteration, double vehicleDispatchTimeFromPC, String clusterHeadCode, CSVPrinter csvPrinter) {
+    private static void parser(int iteration, double vehicleDispatchTimeFromPC, String clusterHeadCode, CSVPrinter csvPrinter) {
 
         try {
             File inputFile = new File("output/mixed-shipments-services-problem-with-solution.xml");
