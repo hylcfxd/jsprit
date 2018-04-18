@@ -1,10 +1,11 @@
-package com.graphhopper.jsprit.core.util;
+package com.rivigo.network;
 
 import com.google.maps.DistanceMatrixApi;
 import com.google.maps.GeoApiContext;
 import com.google.maps.model.DistanceMatrix;
 import com.google.maps.model.LatLng;
 import com.graphhopper.jsprit.core.problem.Location;
+import com.graphhopper.jsprit.core.util.DistanceUnit;
 
 /**
  * Created by Abhishek Tripathi on 03.05.18.

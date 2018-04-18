@@ -8,6 +8,7 @@ import com.graphhopper.jsprit.core.problem.Location;
 import com.graphhopper.jsprit.core.problem.VehicleRoutingProblem;
 import com.graphhopper.jsprit.core.problem.constraint.ConstraintManager;
 import com.graphhopper.jsprit.core.problem.constraint.ServiceDeliveriesFirstConstraint;
+import com.graphhopper.jsprit.core.problem.job.Job;
 import com.graphhopper.jsprit.core.problem.job.Shipment;
 import com.graphhopper.jsprit.core.problem.solution.VehicleRoutingProblemSolution;
 import com.graphhopper.jsprit.core.problem.solution.route.activity.TimeWindow;
@@ -17,13 +18,13 @@ import com.graphhopper.jsprit.core.problem.vehicle.VehicleTypeImpl;
 import com.graphhopper.jsprit.core.reporting.SolutionPrinter;
 import com.graphhopper.jsprit.core.util.Coordinate;
 import com.graphhopper.jsprit.core.util.DistanceUnit;
-import com.graphhopper.jsprit.core.util.GoogleCosts;
 import com.graphhopper.jsprit.core.util.Solutions;
 import com.graphhopper.jsprit.io.problem.VrpXMLWriter;
 import com.graphhopper.jsprit.util.Examples;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.math3.util.Pair;
+import org.javatuples.Quartet;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -33,6 +34,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class RivigoRegionalVRP {
 
@@ -40,7 +42,7 @@ public class RivigoRegionalVRP {
      * Only INTEGER values allowed
      */
     private enum VehicleFleetType {
-        _14_Feet, _17_Feet, _20_Feet, _22_Feet, _32_Feet
+        _14_Feet, _17_Feet, _20_Feet, _22_Feet, _24_Feet, _32_Feet
     }
 
     //Vehicle capacity in Kgs
@@ -48,6 +50,7 @@ public class RivigoRegionalVRP {
     private static final int _17_Feet_Vehicle_Capacity_In_KGs = 3000;
     private static final int _20_Feet_Vehicle_Capacity_In_KGs = 4000;
     private static final int _22_Feet_Vehicle_Capacity_In_KGs = 5000;
+    private static final int _24_Feet_Vehicle_Capacity_In_KGs = 6000;
     private static final int _32_Feet_Vehicle_Capacity_In_KGs = 10000;
 
     //Transportation Cost in Rs.
@@ -55,6 +58,7 @@ public class RivigoRegionalVRP {
     private static final double _17_Feet_Vehicle_Transportation_Cost_Per_Km = 17;
     private static final double _20_Feet_Vehicle_Transportation_Cost_Per_Km = 20;
     private static final double _22_Feet_Vehicle_Transportation_Cost_Per_Km = 22;
+    private static final double _24_Feet_Vehicle_Transportation_Cost_Per_Km = 24;
     private static final double _32_Feet_Vehicle_Transportation_Cost_Per_Km = 32;
 
     //Waiting Cost in Rs.
@@ -82,26 +86,31 @@ public class RivigoRegionalVRP {
     //To ensure branch connectivity to pc
     private static double minWeightToBeHonoured_In_Kgs = 100;
 
+    //Other hyper-parameters
+    private static int maxIterations = 200;
+
     public static void main (String[] args) {
         init();
-        List<String> clusters = Arrays.asList("AMBT1","AMDT1","BLRT1","BOMT1","CCUT1","DELT1","GAUT1","HYDT1","IDRT1","IXWT1","JAIT1","LKOT1","MAAT1","NAGT1","NOIT1","PNQT1","SXVB1");
-        clusters = Arrays.asList("AMBT1");
-        for (String cluster: clusters) {
-            String clusterHeadCode = cluster;
+        for (String cluster: pcToBranchMap.keySet()) {
+            String clusterHeadCode = "AMBT1";
             try (
                 BufferedWriter writer = new BufferedWriter(new FileWriter("output/RegionalOutput-" + clusterHeadCode + ".csv"));
-                CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT
-                    .withHeader("Cluster", "Iteration", "Network", "Cost", "Vehicles_Required", "Route", "Vehicle_Capacity_In_Tonnes",
-                        "Dispatch_Time_From_PC", "Arrival_Time_At_PC", "Impossible_Shipments", "Impossible Shipment_Details"
-//                        "AMBT1","AMDT1","BLRT1","BOMT1","CCUT1","DELT1","GAUT1","HYDT1","IDRT1",
-//                        "IXWT1","JAIT1","LKOT1","MAAT1","NAGT1","NOIT1","PNQT1","SXVB1"
-                    ))
+                CSVPrinter csvPrinter = new CSVPrinter(writer,CSVFormat.EXCEL.withIgnoreEmptyLines());
             ) {
+                List<String> header = new ArrayList<>(Arrays.asList("Cluster", "Iteration", "Network", "Cost", "Vehicles_Required",
+                    "Vehicle_Capacity_In_Tonnes", "Route", "Time_Route", "Max_Dispatch_Time_From_PC_For_Last_Vehicle",
+                    "Arrival_Time_At_PC", "Round_Trip_Duration", "Impossible_Shipments_For_Day0"));
+                for(String node : pcToBranchMap.get(clusterHeadCode)){
+                   header.add(node.concat("_Delivery_Day"));
+                }
+                header.addAll(pcToBranchMap.keySet());
+                csvPrinter.printRecord(header);
                 networkSolverAlgo(true, csvPrinter, clusterHeadCode);
                 System.out.println("RegionalOutput-" + clusterHeadCode + " file created...");
             } catch (Exception e) {
                 e.printStackTrace();
             }
+            break;
         }
     }
 
@@ -222,6 +231,14 @@ public class RivigoRegionalVRP {
             vehicleTypeFactory = _22FeetVehicleBuilder.build();
         }
 
+        else if (vehicleFleetType.equals(VehicleFleetType._24_Feet)) {
+            VehicleTypeImpl.Builder _24FeetVehicleBuilder = VehicleTypeImpl.Builder.newInstance(VehicleFleetType._24_Feet + "_VehicleType")
+                .addCapacityDimension(0, _24_Feet_Vehicle_Capacity_In_KGs)
+                .setCostPerDistance(_24_Feet_Vehicle_Transportation_Cost_Per_Km)
+                .setCostPerWaitingTime(waitingTimeCost);
+            vehicleTypeFactory = _24FeetVehicleBuilder.build();
+        }
+
         else if (vehicleFleetType.equals(VehicleFleetType._32_Feet)) {
             VehicleTypeImpl.Builder _32FeetVehicleTypeBuilder = VehicleTypeImpl.Builder.newInstance(VehicleFleetType._32_Feet + "_VehicleType")
                 .addCapacityDimension(0, _32_Feet_Vehicle_Capacity_In_KGs)
@@ -285,6 +302,7 @@ public class RivigoRegionalVRP {
         int iteration=0;
         pickupTimeWindow[locationCodes.indexOf(clusterHeadCode)][1] = maxDeliveryCutoffInCluster;
         for (int dispatchTime=lowerTimeBoundForPC; dispatchTime<=maxDeliveryCutoffInCluster; dispatchTime++) {
+//        for (int dispatchTime=2; dispatchTime<=2; dispatchTime++) {
             pickupTimeWindow[locationCodes.indexOf(clusterHeadCode)][0] = dispatchTime;
             if (debug) {
                 System.out.println("Iteration: "+iteration+"\n");
@@ -310,112 +328,150 @@ public class RivigoRegionalVRP {
                 Examples.createOutputFolder();
             }
 
-            Collection<Shipment> shipments = new ArrayList<>();
-            for (int day=0; day<1; day++) {
-                for (int from = 0; from < locationCoordinates.size(); from++) {
-                    for (int to = 0; to < locationCoordinates.size(); to++) {
-                        if (from != to && demands[from][to] != 0) {
-                            List<Integer> splitDemand = splitDemand(demands[from][to]);
-                            for (int demand=0; demand < splitDemand.size(); demand++) {
-                                Shipment.Builder shipmentBuilder = Shipment.Builder
-                                    .newInstance("Day" + day + ":" + locationCodes.get(from)
-                                        + " - Day" + day + ":" + locationCodes.get(to) + ", ShipmentNo:"+(demand+1))
-                                    .addSizeDimension(0, splitDemand.get(demand))
-                                    .setPickupLocation(loc(locationCoordinates.get(from)))
-                                    .setDeliveryLocation(loc(locationCoordinates.get(to)))
-                                    /**
-                                     * Time Window Constraints
-                                     */
-                                    // For touching nodes
-                                    .setPickupTimeWindow(TimeWindow.newInstance(pickupTimeWindow[from][0] + (oneDay*day), pickupTimeWindow[from][1] + (oneDay*day)))
-                                    .setPickupServiceTime(pickupServiceTimeForTouchingNode)
-                                    .setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[to][0] + (oneDay * day), deliveryTimeWindow[to][1] + (oneDay * day)))
-                                    .setDeliveryServiceTime(deliveryServiceTimeForTouchingNode);
+            List<String> impossibleDeliveryLocationsForDay0 = new ArrayList<>();
+            for(int epoch=0; epoch<=1; epoch++) {
+                Collection<Shipment> shipments = new ArrayList<>();
+                for (int day = 0; day < 1; day++) {
+                    for (int from = 0; from < locationCoordinates.size(); from++) {
+                        for (int to = 0; to < locationCoordinates.size(); to++) {
+                            if (from != to && demands[from][to] != 0) {
+                                List<Integer> splitDemand = splitDemand(demands[from][to]);
+                                for (int demand = 0; demand < splitDemand.size(); demand++) {
+                                    Shipment.Builder shipmentBuilder = Shipment.Builder
+                                        .newInstance("Day" + day + ":" + locationCodes.get(from)
+                                            + " - Day" + day + ":" + locationCodes.get(to) + ", ShipmentNo:" + (demand + 1))
+                                        .addSizeDimension(0, splitDemand.get(demand))
+                                        .setPickupLocation(loc(locationCoordinates.get(from)))
+                                        .setDeliveryLocation(loc(locationCoordinates.get(to)))
+                                        /**
+                                         * Time Window constraints
+                                         */
+                                        .setPickupTimeWindow(TimeWindow.newInstance(pickupTimeWindow[from][0] + (oneDay * day), pickupTimeWindow[from][1] + (oneDay * day)))
+                                        .setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[to][0] + (oneDay * day), deliveryTimeWindow[to][1] + (oneDay * day)))
+                                        /**
+                                         * Service time for touching nodes
+                                         */
+                                        .setPickupServiceTime(pickupServiceTimeForTouchingNode)
+                                        .setDeliveryServiceTime(deliveryServiceTimeForTouchingNode);
 
-                                // Override pickup time for multiple shipments
-                                if (splitDemand.size()>1) {
-                                    shipmentBuilder.setPickupServiceTime(pickupServiceTimeForTouchingNode + (oneHour*2) * demand);
+                                    /**
+                                     * Relaxing delivery time windows for places where delivery is not possible on Day:0
+                                     */
+                                    if (epoch==1 && impossibleDeliveryLocationsForDay0.size()>0) {
+                                        for(String node: impossibleDeliveryLocationsForDay0) {
+                                            if (locationCodes.indexOf(node) == to) {
+                                                shipmentBuilder.setDeliveryTimeWindow(
+                                                    TimeWindow.newInstance(lowerTimeBoundForBranch, upperTimeBoundForBranch));
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    /**
+                                     * Override pickup time for multiple shipments
+                                     */
+                                    if (splitDemand.size() > 1) {
+                                        shipmentBuilder.setPickupServiceTime(pickupServiceTimeForTouchingNode + (oneHour * 2) * demand);
+                                    }
+                                    /**
+                                     * Override service time for destination/source PC (Being taken care by National Line Hauls)
+                                     */
+                                    if (from == indexOfPc) {
+                                        shipmentBuilder.setPickupServiceTime(0);
+                                    }
+                                    if (to == indexOfPc) {
+                                        shipmentBuilder.setDeliveryServiceTime(0);
+                                    }
+                                    /**
+                                     * Extending window by 1 day for intra-cluster movement
+                                     */
+                                    if (from != indexOfPc && to != indexOfPc) {
+                                        shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[to][0] + (oneDay * (day + 1)),
+                                            deliveryTimeWindow[to][1] + (oneDay * (day + 1))));
+                                    }
+                                    Shipment shipment = shipmentBuilder.build();
+                                    shipments.add(shipment);
                                 }
-                                // Override service time for destination/source PC (Being taken care by National Line Hauls)
-                                if (from == indexOfPc) {
-                                    shipmentBuilder.setPickupServiceTime(0);
-                                }
-                                if (to == indexOfPc) {
-                                    shipmentBuilder.setDeliveryServiceTime(0);
-                                }
-                                // Extending window by 1 day for intra-cluster movement
-                                if (from != indexOfPc && to != indexOfPc) {
-                                    shipmentBuilder.setDeliveryTimeWindow(TimeWindow.newInstance(deliveryTimeWindow[to][0] + (oneDay * (day+1)),
-                                        deliveryTimeWindow[to][1] + (oneDay * (day+1))));
-                                }
-                                Shipment shipment = shipmentBuilder.build();
-                                shipments.add(shipment);
                             }
                         }
                     }
                 }
+
+                /**
+                 * Setup problem model
+                 */
+                VehicleRoutingProblem.Builder vrpBuilder = VehicleRoutingProblem.Builder.newInstance();
+
+                for (String locationCode : locationCodes) {
+                    vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
+                    vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
+                    vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
+                    vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
+//                    vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._24_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
+                    vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
+                }
+
+                vrpBuilder.addAllJobs(shipments);
+                vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.FINITE);
+                GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer, avgVehicleSpeedInKMPH);
+                vrpBuilder.setRoutingCost(googleCosts);
+                VehicleRoutingProblem problem = vrpBuilder.build();
+
+                /**
+                 * Build the algorithm
+                 */
+                StateManager stateManager = new StateManager(problem);
+                ConstraintManager constraintManager = new ConstraintManager(problem, stateManager);
+                constraintManager.addConstraint(new ServiceDeliveriesFirstConstraint(), ConstraintManager.Priority.CRITICAL);
+
+                VehicleRoutingAlgorithm algorithm = Jsprit.Builder.newInstance(problem)
+                    .setStateAndConstraintManager(stateManager, constraintManager)
+                    .buildAlgorithm();
+                algorithm.setMaxIterations(maxIterations);
+
+                /**
+                 * Search a solution
+                 */
+                Collection<VehicleRoutingProblemSolution> solutions = algorithm.searchSolutions();
+
+                /**
+                 * Get the best solution
+                 */
+                VehicleRoutingProblemSolution bestSolution = Solutions.bestOf(solutions);
+                new VrpXMLWriter(problem, solutions).write("output/mixed-shipments-services-problem-with-solution.xml");
+                SolutionPrinter.print(bestSolution);
+
+                /**
+                 * Plot
+                 */
+                Plotter problemPlotter = new Plotter(problem);
+                problemPlotter.plotShipments(true);
+                problemPlotter.plot("output/simpleMixedEnRoutePickupAndDeliveryExample_problem.png", "Network for "+clusterHeadCode);
+
+                Plotter solutionPlotter = new Plotter(problem, Solutions.bestOf(solutions));
+                solutionPlotter.plotShipments(true);
+                solutionPlotter.plot("output/simpleMixedEnRoutePickupAndDeliveryExample_solution.png", "Network for "+clusterHeadCode);
+
+                /**
+                 * Get details of impossible shipments for Day:0
+                 */
+                Collection<Job> impossibleShipmentsForDay0 = bestSolution.getUnassignedJobs();
+                if (impossibleShipmentsForDay0.size() != 0) {
+                    for (Job job: impossibleShipmentsForDay0) {
+                        impossibleDeliveryLocationsForDay0.add(parseShipmentIdToGetSourceNode(job.getId(),1));
+                    }
+                }
+                else{
+                    break;
+                }
             }
-
-            /**
-             * setup problem
-             */
-            VehicleRoutingProblem.Builder vrpBuilder = VehicleRoutingProblem.Builder.newInstance();
-
-            for (String locationCode: locationCodes) {
-                vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._14_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
-                vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._17_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
-                vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._20_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
-                vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._22_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
-                vrpBuilder.addAllVehicles(vehicleFactory(VehicleFleetType._32_Feet, 10, locationCode, vehicleDispatchTimeFromPC));
-            }
-
-            vrpBuilder.addAllJobs(shipments);
-            vrpBuilder.setFleetSize(VehicleRoutingProblem.FleetSize.FINITE);
-            GoogleCosts googleCosts = new GoogleCosts(DistanceUnit.Kilometer, avgVehicleSpeedInKMPH);
-            vrpBuilder.setRoutingCost(googleCosts);
-            VehicleRoutingProblem problem = vrpBuilder.build();
-
-            /**
-             * build the algorithm
-             */
-            StateManager stateManager = new StateManager(problem);
-            ConstraintManager constraintManager = new ConstraintManager(problem, stateManager);
-            constraintManager.addConstraint(new ServiceDeliveriesFirstConstraint(), ConstraintManager.Priority.CRITICAL);
-
-            VehicleRoutingAlgorithm algorithm = Jsprit.Builder.newInstance(problem)
-                                                .setStateAndConstraintManager(stateManager,constraintManager)
-                                                .buildAlgorithm();
-
-    //        algorithm.setMaxIterations(10000);
-            /**
-             * and search a solution
-             */
-            Collection<VehicleRoutingProblemSolution> solutions = algorithm.searchSolutions();
-
-            /**
-             * get the best
-             */
-            VehicleRoutingProblemSolution bestSolution = Solutions.bestOf(solutions);
-            new VrpXMLWriter(problem, solutions).write("output/mixed-shipments-services-problem-with-solution.xml");
-            SolutionPrinter.print(bestSolution);
-
-            /**
-             * plot
-             */
-            Plotter problemPlotter = new Plotter(problem);
-            problemPlotter.plotShipments(true);
-            problemPlotter.plot("output/simpleMixedEnRoutePickupAndDeliveryExample_problem.png", "Network for "+clusterHeadCode);
-
-            Plotter solutionPlotter = new Plotter(problem, Solutions.bestOf(solutions));
-            solutionPlotter.plotShipments(true);
-            solutionPlotter.plot("output/simpleMixedEnRoutePickupAndDeliveryExample_solution.png", "Network for "+clusterHeadCode);
-            parser(iteration, dispatchTime, clusterHeadCode, csvPrinter);
+            parser(iteration, dispatchTime, clusterHeadCode, impossibleDeliveryLocationsForDay0, csvPrinter);
             iteration++;
         }
     }
 
-    private static void parser(int iteration, double vehicleDispatchTimeFromPC, String clusterHeadCode, CSVPrinter csvPrinter) {
-
+    private static void parser(int iteration, double vehicleDispatchTimeFromPC, String clusterHeadCode,
+                                    List<String> impossibleDeliveryLocationsForDay0, CSVPrinter csvPrinter) {
         try {
             File inputFile = new File("output/mixed-shipments-services-problem-with-solution.xml");
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
@@ -434,6 +490,7 @@ public class RivigoRegionalVRP {
             System.out.println("-------------------------------------------------");
             List<List<Pair<String,String>>> allRoutes = new ArrayList<>();
             for (int route = 0; route < routeList.getLength(); route++) {
+                List<Double> loadSplit = new ArrayList<>(Arrays.asList(0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0));
                 Node routeNode = routeList.item(route);
                 if (routeNode.getNodeType() == Node.ELEMENT_NODE) {
                     Element routeNodeElement = (Element) routeNode;
@@ -441,9 +498,9 @@ public class RivigoRegionalVRP {
                     System.out.println("Vehicle Id: " + routeNodeElement.getElementsByTagName("vehicleId").item(0).getTextContent());
                     System.out.println("Start Time: " + routeNodeElement.getElementsByTagName("start").item(0).getTextContent() + "\n");
                     List<Pair<String,String>> routeOfVehicle = new ArrayList<>();
+                    List<Quartet<String,String,String,String>> timeRouteOfVehicle = new ArrayList<>();
                     NodeList actList = routeNodeElement.getElementsByTagName("act");
                     String arrivalTimeAtPc = "";
-                    Collection<String> loadSplit = new ArrayList<>();
                     for (int act = 0; act < actList.getLength(); act++) {
                         Node actNode = actList.item(act);
                         if (actNode.getNodeType() == Node.ELEMENT_NODE) {
@@ -453,24 +510,35 @@ public class RivigoRegionalVRP {
                             Pair<String,String> shipmentTypeAndId = new Pair<String, String>(
                                 actNodeElement.getAttribute("type"),
                                 actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent());
+                            Quartet<String, String, String, String> completeShipmentData = new Quartet<>(
+                                actNodeElement.getAttribute("type"),
+                                actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent(),
+                                actNodeElement.getElementsByTagName("arrTime").item(0).getTextContent(),
+                                actNodeElement.getElementsByTagName("endTime").item(0).getTextContent()
+                            );
                             routeOfVehicle.add(shipmentTypeAndId);
-                            arrivalTimeAtPc = actNodeElement.getElementsByTagName("arrTime").item(0).getTextContent();
+                            timeRouteOfVehicle.add(completeShipmentData);
                             System.out.println("Arrival Time: " + actNodeElement.getElementsByTagName("arrTime").item(0).getTextContent());
                             System.out.println("Departure Time: " + actNodeElement.getElementsByTagName("endTime").item(0).getTextContent());
-//                            if (actNodeElement.getAttribute("type").equalsIgnoreCase("deliverShipment")
-//                                && parseShipmentIdString(actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent(), 1)
-//                                .equalsIgnoreCase(clusterHeadCode)) {
-//                                String src = parseShipmentIdString(actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent(), 0);
-//                                System.out.println("Src node: " + src);
-//                                // Load Split
-//                                for (String pc : pcToBranchMap.keySet()) {
-//                                    System.out.print(getTotalShipmentFromNodeToCluster(src.trim(), pc) + ", ");
-//                                    loadSplit.add(getTotalShipmentFromNodeToCluster(src.trim(), pc) + "");
-//                                }
-//                            }
+                            if (actNodeElement.getAttribute("type").equalsIgnoreCase("deliverShipment")
+                                && parseShipmentIdToGetSourceNode(actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent(), 1)
+                                .equalsIgnoreCase(clusterHeadCode)) {
+                                String src = parseShipmentIdToGetSourceNode(actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent(), 0);
+//                                int shipmentNumber = parseShipmentIdToGetShipmentNumber(actNodeElement.getElementsByTagName("shipmentId").item(0).getTextContent());
+                                System.out.println("Src node: " + src);
+                                // Load Split
+                                int pcIndex=0;
+                                for (String pc : pcToBranchMap.keySet()) {
+                                    System.out.print(getTotalShipmentFromNodeToClusterHead(src.trim(), pc) + ", ");
+                                    loadSplit.set(pcIndex,loadSplit.get(pcIndex)+getTotalShipmentFromNodeToClusterHead(src.trim(), pc));
+                                    pcIndex++;
+                                }
+                            }
                         }
                         System.out.println();
                     }
+                    arrivalTimeAtPc = routeNodeElement.getElementsByTagName("end").item(0).getTextContent();
+//                    timeRouteOfVehicle.add(new Quartet<>("","","end",routeNodeElement.getElementsByTagName("end").item(0).getTextContent()));
                     List<String> outputData = new ArrayList<>();
                     // Cluster
                     outputData.add(clusterHeadCode);
@@ -482,8 +550,6 @@ public class RivigoRegionalVRP {
                     outputData.add(firstSolutionElement.getElementsByTagName("cost").item(0).getTextContent());
                     // Vehicles Required
                     outputData.add(routeList.getLength() + "");
-                    // Route
-                    outputData.add(createConnectedRoute(routeOfVehicle));
                     // Vehicle Capacity
                     if (vehicleId.contains(VehicleFleetType._14_Feet.toString()))
                         outputData.add(_14_Feet_Vehicle_Capacity_In_KGs/1000.0+"");
@@ -495,33 +561,29 @@ public class RivigoRegionalVRP {
                         outputData.add(_22_Feet_Vehicle_Capacity_In_KGs/1000.0+"");
                     else if (vehicleId.contains(VehicleFleetType._32_Feet.toString()))
                         outputData.add(_32_Feet_Vehicle_Capacity_In_KGs/1000.0+"");
+                    // Route
+                    outputData.add(createConnectedRoute(routeOfVehicle));
+                    // Time Route
+                    outputData.add(createConnectedTimeRoute(timeRouteOfVehicle));
                     // Dispatch Time from PC
-                    outputData.add(vehicleDispatchTimeFromPC + "");
+                    outputData.add(vehicleDispatchTimeFromPC+"");
                     // Arrival Time at PC
-                    outputData.add(arrivalTimeAtPc);
+                    outputData.add(getValidTime(arrivalTimeAtPc));
+                    // Round Trip Duration
+                    outputData.add((Double.parseDouble(getValidTime(arrivalTimeAtPc))-vehicleDispatchTimeFromPC)+"");
                     // Impossible Shipments
-                    NodeList unassignedJobsList = firstSolutionElement.getElementsByTagName("job");
-                    outputData.add(unassignedJobsList.getLength() + "");
-                    // Impossible Shipments Details
-                    if (unassignedJobsList.getLength() != 0) {
-                        String impossibleShipments = "";
-                        for (int job = 0; job < unassignedJobsList.getLength(); job++) {
-                            Node jobNode = unassignedJobsList.item(job);
-                            if (jobNode.getNodeType() == Node.ELEMENT_NODE) {
-                                Element jobNodeElement = (Element) jobNode;
-                                impossibleShipments += "["
-                                    + parseShipmentIdString(jobNodeElement.getAttribute("id"), 0)
-                                    + "- "
-                                    + parseShipmentIdString(jobNodeElement.getAttribute("id"), 1)
-                                    + "], ";
-                            }
-                        }
-                        outputData.add(impossibleShipments);
-                    } else {
-                        outputData.add("-");
+                    outputData.add(impossibleDeliveryLocationsForDay0.size()+"");
+                    // Delivery day for each node
+                    for(String node: pcToBranchMap.get(clusterHeadCode)) {
+                        if (impossibleDeliveryLocationsForDay0.contains(node))
+                            outputData.add(1+"");
+                        else
+                            outputData.add(0+"");
                     }
                     // Load Split
-                    outputData.addAll(loadSplit);
+                    for(double load : loadSplit){
+                        outputData.add(load+"");
+                    }
                     // Write data to output file
                     csvPrinter.printRecord(outputData);
 
@@ -602,7 +664,7 @@ public class RivigoRegionalVRP {
         return delivery>0?delivery:minWeightToBeHonoured_In_Kgs;
     }
 
-    private static double getTotalShipmentFromNodeToCluster(String node, String pc) {
+    private static double getTotalShipmentFromNodeToClusterHead(String node, String pc) {
 
         double shipment=0;
         for (String branchOrPc: pcToBranchMap.get(pc)) {
@@ -612,7 +674,7 @@ public class RivigoRegionalVRP {
         return shipment;
     }
 
-    private static double getTotalShipmentFromClusterToNode(String pc, String node) {
+    private static double getTotalShipmentFromClusterHeadToNode(String pc, String node) {
 
         double shipment=0;
         for (String branchOrPc: pcToBranchMap.get(pc)) {
@@ -622,17 +684,28 @@ public class RivigoRegionalVRP {
         return shipment;
     }
 
-    private static String parseShipmentIdString(String id, int index) {
+    private static String parseShipmentIdToGetSourceNode(String id, int index) {
         return id.split(",")[0].split("-")[index].split(":")[1];
+    }
+
+    private static int parseShipmentIdToGetShipmentNumber(String id) {
+        return Integer.parseInt(id.split(",")[1].split(":")[1]);
+    }
+
+    private static String getValidTime(String timeString) {
+        double time = Math.round(Double.parseDouble(timeString)*100.0)/100.0;
+        int hour = (int)time;
+        int min = (int)((100 * time - 100 * hour)/100.0*60);
+        return ""+hour+"."+min;
     }
 
     private static String createConnectedRoute(List<Pair<String,String>> route) {
         List<String> connectedRoute = new ArrayList<>();
         for (Pair<String,String> shipmentTypeAndId : route) {
             if (shipmentTypeAndId.getFirst().trim().equalsIgnoreCase("pickupShipment"))
-                connectedRoute.add(parseShipmentIdString(shipmentTypeAndId.getSecond(), 0).trim());
+                connectedRoute.add(parseShipmentIdToGetSourceNode(shipmentTypeAndId.getSecond(), 0).trim());
             else
-                connectedRoute.add(parseShipmentIdString(shipmentTypeAndId.getSecond(),1).trim());
+                connectedRoute.add(parseShipmentIdToGetSourceNode(shipmentTypeAndId.getSecond(),1).trim());
         }
         StringBuilder parsedRoute = new StringBuilder("[");
         parsedRoute.append(connectedRoute.get(0));
@@ -642,7 +715,55 @@ public class RivigoRegionalVRP {
             }
         }
         parsedRoute.append("]");
-        return  parsedRoute.toString();
+        return parsedRoute.toString();
+    }
+
+    private static String createConnectedTimeRoute(List<Quartet<String,String,String,String>> timeRoute) {
+        List<String> connectedRoute = new ArrayList<>();
+//        if (timeRoute.get(timeRoute.size()-1).getValue3().equalsIgnoreCase(timeRoute.get(timeRoute.size()-2).getValue3())) {
+//            timeRoute = timeRoute.subList(0, timeRoute.size() - 1);
+//        }
+        for (Quartet<String,String,String,String> shipmentInfo : timeRoute) {
+            StringBuilder nodeWithTimeRange = new StringBuilder();
+            if (shipmentInfo.getValue0().trim().equalsIgnoreCase("pickupShipment")) {
+                nodeWithTimeRange.append(parseShipmentIdToGetSourceNode(shipmentInfo.getValue1(),0).trim());
+                nodeWithTimeRange.append("(P:");
+                nodeWithTimeRange.append(getValidTime(shipmentInfo.getValue2()));
+                nodeWithTimeRange.append("-");
+                nodeWithTimeRange.append(getValidTime(shipmentInfo.getValue3()));
+                nodeWithTimeRange.append(")");
+                connectedRoute.add(nodeWithTimeRange.toString());
+            }
+            else {
+                nodeWithTimeRange.append(parseShipmentIdToGetSourceNode(shipmentInfo.getValue1(),1).trim());
+                nodeWithTimeRange.append("(D:");
+                nodeWithTimeRange.append(getValidTime(shipmentInfo.getValue2()));
+                nodeWithTimeRange.append("-");
+                nodeWithTimeRange.append(getValidTime(shipmentInfo.getValue3()));
+                nodeWithTimeRange.append(")");
+                connectedRoute.add(nodeWithTimeRange.toString());
+            }
+//            else if (shipmentInfo.getValue0().trim().equalsIgnoreCase("")) {
+//                nodeWithTimeRange.append(parseShipmentIdToGetSourceNode(timeRoute.get(0).getValue0(),0).trim()+"()");
+//                connectedRoute.add(nodeWithTimeRange.toString());
+//            }
+        }
+
+        connectedRoute = connectedRoute.stream().distinct().collect(Collectors.toList());
+        StringBuilder parsedTimeRoute = new StringBuilder("[");
+        parsedTimeRoute.append(connectedRoute.get(0));
+        for (int i=1; i<connectedRoute.size()-1; i++) {
+            if (!connectedRoute.get(i).split("\\(")[0].equalsIgnoreCase(connectedRoute.get(i - 1).split("\\(")[0])) {
+                parsedTimeRoute.append("-" + connectedRoute.get(i));
+            } else {
+                parsedTimeRoute.deleteCharAt(parsedTimeRoute.length() - 1);
+                parsedTimeRoute.append(',');
+                parsedTimeRoute.append(connectedRoute.get(i).split("\\(")[1]);
+            }
+        }
+        parsedTimeRoute.append("-"+connectedRoute.get(connectedRoute.size()-1).split("\\(")[0]+"]");
+        parsedTimeRoute.delete(parsedTimeRoute.indexOf("("),parsedTimeRoute.indexOf(")")+1);
+        return parsedTimeRoute.toString();
     }
 
     private static String createNetwork( List<List<Pair<String,String>>> allRoutes) {
